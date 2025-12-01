@@ -47,16 +47,20 @@
             #game-ui {
                 margin-bottom: 10px !important; /* Réduit encore l'espace pour garantir que tout rentre */
                 margin-top: 10px;
+                width: 100% !important; /* Prend toute la largeur pour bien centrer le texte */
+                padding: 0 10px;
             }
 
             #puzzle-container {
-                /* MODIFICATION : On prend presque toute la largeur dispo */
-                width: 95vw !important; 
-                max-width: none !important;
+                /* MODIFICATION : Taille réduite pour éviter d'être coupé (88vw est plus sûr que 95vw) */
+                width: 88vw !important; 
+                max-width: 400px !important; /* Limite la largeur max */
                 /* On laisse la hauteur s'adapter au ratio, mais on limite pour ne pas manger toute la place verticale */
                 height: auto !important; 
-                max-height: 55vh; 
+                max-height: 50vh; /* Un peu moins haut pour laisser de la place aux pièces en bas */
                 margin: 0 auto !important;
+                left: 0;
+                right: 0;
             }
             
             #background-container {
@@ -119,8 +123,8 @@
             z-index: 50; 
             
             /* MODIFICATION : Largeur augmentée pour prendre plus de place */
-            width: 95vw; 
-            max-width: 1000px; /* Beaucoup plus large sur Desktop si possible */
+            width: 90vw; /* Réduit un peu pour la sécurité */
+            max-width: 1000px; 
             
             /* Sécurité verticale : ne jamais dépasser 60% de la hauteur de l'écran pour éviter le scroll */
             max-height: 60vh; 
