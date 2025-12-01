@@ -12,7 +12,7 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none;
+            touch-action: none; /* Empêche le zoom/scroll par défaut sur certains éléments */
         }
 
         body {
@@ -25,9 +25,39 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            overflow: hidden;
+            /* Hauteur min 100vh pour couvrir l'écran, mais hauteur auto pour permettre le scroll */
+            min-height: 100vh;
+            width: 100%;
+            overflow: hidden; /* Par défaut hidden sur desktop */
             position: relative;
+        }
+
+        /* --- RESPONSIVE MOBILE --- */
+        @media (max-width: 768px) {
+            body {
+                display: block; /* Change flex en block pour permettre le flux naturel */
+                padding-top: 40px; /* Marge en haut */
+                overflow-y: auto; /* Active le scroll vertical sur mobile ! */
+                overflow-x: hidden;
+                height: auto;
+                /* On réactive le touch-action sur le body pour permettre le scroll */
+                touch-action: pan-y; 
+            }
+
+            #game-ui {
+                margin-bottom: 20px !important; /* Moins d'espace perdu en haut */
+                margin-top: 0;
+            }
+
+            #puzzle-container {
+                margin: 0 auto 150px auto; /* Marge auto pour centrer + espace en bas pour les pièces */
+                width: 85vw !important; /* Un peu plus petit pour laisser des marges */
+            }
+            
+            /* Ajustement de l'image de fond sur mobile */
+            #background-container {
+                height: 40vh !important; /* Moins haut sur mobile pour ne pas gêner */
+            }
         }
 
         /* --- ARRIÈRE-PLAN --- */
@@ -71,6 +101,7 @@
             opacity: 0.8;
             transition: opacity 0.5s ease;
             text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            padding: 0 10px; /* Petite marge de sécurité pour le texte */
         }
 
         .instruction-highlight {
@@ -85,7 +116,9 @@
             width: 90vw;
             max-width: 600px;
             aspect-ratio: 4/3; 
+            
             background-color: #ffffff; 
+            
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: background-color 0.5s;
@@ -112,7 +145,7 @@
             z-index: 60;
             filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
             transition: transform 0.1s;
-            touch-action: none;
+            touch-action: none; /* Important : désactive le scroll quand on touche une pièce */
         }
 
         .piece.dragging {
@@ -148,8 +181,19 @@
         }
 
         #success-message.visible {
-            bottom: 20px;
+            bottom: 20px; /* Position par défaut desktop */
             opacity: 1;
+        }
+        
+        /* Ajustement position message sur mobile */
+        @media (max-width: 768px) {
+            #success-message {
+                position: fixed; /* Fixe pour qu'il soit toujours visible */
+                bottom: -100px;
+            }
+            #success-message.visible {
+                bottom: 30px;
+            }
         }
 
         @media (min-height: 800px) {
@@ -204,7 +248,7 @@
 
     <div id="success-message">
         <h2>Félicitations !</h2>
-        <p> Vous avez maintenant la date du mariage ! Hâte de vous y voir 🥰</p>
+        <p>C'est noté ! Plus de détails suivront bientôt.</p>
     </div>
 
     <script>
@@ -223,41 +267,19 @@
         const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
 
-        // --- SCRIPT INTELLIGENT DE CHARGEMENT DU FOND ---
-        const possibleBackgrounds = [
-            'bg.jpg', 
-            'bg.jpeg', 
-            'bg.png', 
-            'background.jpg', 
-            'background.jpeg', 
-            'background.png',
-            'Background.jpg' 
-        ];
-        
+        // --- CHARGEMENT DU FOND ---
+        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg', 'background.jpeg', 'background.png', 'Background.jpg'];
         const bgImgElement = document.getElementById('bg-img');
         
         function tryLoadBackground(index) {
-            if (index >= possibleBackgrounds.length) {
-                console.warn("Aucun fond trouvé. Vérifiez que le fichier est bien présent.");
-                return;
-            }
-            
+            if (index >= possibleBackgrounds.length) return;
             const currentName = possibleBackgrounds[index];
             const tester = new Image();
-            
-            tester.onload = function() {
-                bgImgElement.src = currentName;
-            };
-            
-            tester.onerror = function() {
-                tryLoadBackground(index + 1);
-            };
-            
+            tester.onload = function() { bgImgElement.src = currentName; };
+            tester.onerror = function() { tryLoadBackground(index + 1); };
             tester.src = currentName;
         }
-        
         tryLoadBackground(0);
-
 
         // --- LOGIQUE DU PUZZLE ---
         let pieces = [];
@@ -265,12 +287,8 @@
         const totalPieces = CONFIG.rows * CONFIG.cols;
 
         const JIGSAW_SHAPES = [
-            [0, 1, 1, 0],   // R0 C0
-            [0, -1, -1, -1], // R0 C1
-            [0, 0, 1, 1],   // R0 C2
-            [-1, -1, 0, 0], // R1 C0
-            [1, -1, 0, 1],  // R1 C1
-            [-1, 0, 0, 1]   // R1 C2
+            [0, 1, 1, 0], [0, -1, -1, -1], [0, 0, 1, 1],
+            [-1, -1, 0, 0], [1, -1, 0, 1], [-1, 0, 0, 1]
         ];
 
         const img = new Image();
@@ -279,22 +297,18 @@
         img.onload = () => {
             const ratio = img.width / img.height;
             container.style.aspectRatio = `${ratio}`;
-            
             guide.style.backgroundImage = `url('${CONFIG.guideSrc}')`;
             
             const guideTester = new Image();
             guideTester.src = CONFIG.guideSrc;
             guideTester.onerror = () => {
-                console.warn("Guide spécifique non trouvé, utilisation de l'image du puzzle.");
                 guide.style.backgroundImage = `url('${CONFIG.imageSrc}')`;
             };
 
             initPuzzle();
         };
 
-        img.onerror = () => {
-            alert("⚠️ Erreur Critique : L'image 'puzzle.png' n'a pas été trouvée.");
-        };
+        img.onerror = () => { alert("⚠️ Erreur : L'image 'puzzle.png' n'a pas été trouvée."); };
 
         function initPuzzle() {
             const basePieceW = img.width / CONFIG.cols;
@@ -307,8 +321,8 @@
                     createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, JIGSAW_SHAPES[shapeIndex]);
                 }
             }
-
-            scramblePieces();
+            // Délai léger pour s'assurer que le DOM est prêt avant de mélanger
+            setTimeout(scramblePieces, 100);
         }
 
         function createCanvasPiece(row, col, w, h, tabSize, shape) {
@@ -332,48 +346,22 @@
             let y = offsetY;
             ctx.moveTo(x, y);
 
-            // Haut
-            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize);
-            else ctx.lineTo(x + w, y);
-
-            // Droite
+            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y);
             x += w;
-            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize);
-            else ctx.lineTo(x, y + h);
-
-            // Bas
+            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h);
             y += h;
-            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize);
-            else ctx.lineTo(x - w, y);
-
-            // Gauche
+            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y);
             x -= w;
-            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize);
-            else ctx.lineTo(x, y - h);
+            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h);
 
             ctx.closePath();
             ctx.clip();
-            
-            ctx.drawImage(img, 
-                col * w - offsetX, row * h - offsetY,
-                totalW, totalH,
-                0, 0, totalW, totalH
-            );
-            
-            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
+            ctx.drawImage(img, col * w - offsetX, row * h - offsetY, totalW, totalH, 0, 0, totalW, totalH);
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
 
-            // Styling responsive
-            const sizeFactorW = totalW / w;
-            const sizeFactorH = totalH / h;
-            
+            // Style responsive
             canvas.style.width = `${(totalW / (img.width)) * 100}%`;
             canvas.style.height = 'auto';
             
@@ -391,119 +379,86 @@
         function drawTab(ctx, x, y, dx, dy, size) {
             const l = Math.sqrt(dx*dx + dy*dy);
             const neck = l * 0.35;
-            
-            const ux = dx / l;
-            const uy = dy / l;
-            const nx = -uy; 
-            const ny = ux;
-
-            const x1 = x + ux * (l - neck)/2;
-            const y1 = y + uy * (l - neck)/2;
-            
-            const x2 = x + ux * (l + neck)/2;
-            const y2 = y + uy * (l + neck)/2;
+            const ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
+            const x1 = x + ux * (l - neck)/2, y1 = y + uy * (l - neck)/2;
+            const x2 = x + ux * (l + neck)/2, y2 = y + uy * (l + neck)/2;
 
             ctx.lineTo(x1, y1);
-
             const h = Math.abs(size);
             const sign = size > 0 ? 1 : -1;
-            
-            const cx1 = x1 + nx * sign * h * 0.2;
-            const cy1 = y1 + ny * sign * h * 0.2;
-            
-            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h;
-            const ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
-            
-            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h;
-            const ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
-            
-            const cx2 = x2 + nx * sign * h * 0.2;
-            const cy2 = y2 + ny * sign * h * 0.2;
+            const cx1 = x1 + nx * sign * h * 0.2, cy1 = y1 + ny * sign * h * 0.2;
+            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h, ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
+            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h, ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
+            const cx2 = x2 + nx * sign * h * 0.2, cy2 = y2 + ny * sign * h * 0.2;
 
             ctx.bezierCurveTo(cx1, cy1, tx1, ty1, x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h);
             ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
-            
             ctx.lineTo(x + dx, y + dy);
         }
 
         function scramblePieces() {
             const containerRect = container.getBoundingClientRect();
-            const winW = window.innerWidth;
-            const winH = window.innerHeight;
+            // Important : Utiliser les dimensions réelles du document pour permettre le scroll
+            const docWidth = document.body.clientWidth;
+            const docHeight = Math.max(document.body.clientHeight, window.innerHeight); 
+            const isMobile = window.innerWidth <= 768;
 
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
                 
                 const pW = piece.offsetWidth || 100;
                 const pH = piece.offsetHeight || 100;
-
                 const zones = [];
 
-                if (containerRect.left > pW * 0.5) {
-                    zones.push({
-                        minX: 10, 
-                        maxX: containerRect.left - pW * 0.5,
-                        minY: containerRect.top, 
-                        maxY: containerRect.bottom - pH
-                    });
+                // Zone Gauche (Desktop uniquement)
+                if (!isMobile && containerRect.left > pW * 0.6) {
+                    zones.push({ minX: 10, maxX: containerRect.left - pW * 0.6, minY: containerRect.top, maxY: containerRect.bottom - pH });
                 }
-
-                if ((winW - containerRect.right) > pW * 0.5) {
-                    zones.push({
-                        minX: containerRect.right + pW * 0.2, 
-                        maxX: winW - pW - 10,
-                        minY: containerRect.top, 
-                        maxY: containerRect.bottom - pH
-                    });
+                // Zone Droite (Desktop uniquement)
+                if (!isMobile && (docWidth - containerRect.right) > pW * 0.6) {
+                    zones.push({ minX: containerRect.right + pW * 0.2, maxX: docWidth - pW - 10, minY: containerRect.top, maxY: containerRect.bottom - pH });
                 }
+                // Zone Bas (Mobile & Desktop)
+                // Sur mobile, on force l'utilisation de l'espace vertical scrollable
+                const bottomStartY = containerRect.bottom + 20;
+                const bottomEndY = isMobile ? (bottomStartY + 300) : (docHeight - pH - 20); // 300px d'espace de dispersion sur mobile
 
-                const bottomSpace = winH - containerRect.bottom;
-                zones.push({
-                    minX: 10,
-                    maxX: winW - pW - 10,
-                    minY: containerRect.bottom + 10,
-                    maxY: winH - pH - 10
-                });
+                zones.push({ minX: 10, maxX: docWidth - pW - 10, minY: bottomStartY, maxY: bottomEndY });
 
+                // Sélection zone
                 const zone = zones[Math.floor(Math.random() * zones.length)];
-
+                
+                // Calcul position
                 const safeMaxX = Math.max(zone.minX, zone.maxX);
                 const safeMaxY = Math.max(zone.minY, zone.maxY);
-                
                 const pageX = zone.minX + Math.random() * (safeMaxX - zone.minX);
                 const pageY = zone.minY + Math.random() * (safeMaxY - zone.minY);
 
-                const relativeX = pageX - containerRect.left;
-                const relativeY = pageY - containerRect.top;
-
-                piece.style.left = `${relativeX}px`;
-                piece.style.top = `${relativeY}px`;
+                // Application
+                piece.style.left = `${pageX - containerRect.left}px`;
+                piece.style.top = `${pageY - containerRect.top}px`;
             });
         }
 
+        // --- DRAG & DROP UNIFIÉ ---
         function addDragListeners(el) {
-            let startX = 0, startY = 0;
-            let initialLeft = 0, initialTop = 0;
-            let isDragging = false;
+            let startX, startY, initialLeft, initialTop, isDragging = false;
 
             const onStart = (e) => {
                 if (el.classList.contains('locked')) {
-                    el.classList.remove('locked');
-                    lockedCount--;
-                    if (container.classList.contains('puzzle-complete')) {
-                        container.classList.remove('puzzle-complete');
-                        successMsg.classList.remove('visible');
-                        instructionText.style.display = 'block';
-                        requestAnimationFrame(() => instructionText.style.opacity = '0.8');
-                    }
+                    // Si on touche une pièce verrouillée, on peut juste lancer un petit effet ou rien faire
+                    // Ici on ne fait rien pour ne pas déverrouiller accidentellement
+                    return; 
                 }
                 
+                // Empêche le comportement par défaut (scroll) seulement sur la pièce
+                if(e.type === 'touchstart') document.body.style.overflow = 'hidden';
+
                 isDragging = true;
                 el.classList.add('dragging');
-
+                
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-
                 startX = clientX;
                 startY = clientY;
                 initialLeft = el.offsetLeft;
@@ -513,11 +468,10 @@
 
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault();
+                e.preventDefault(); // Empêche le scroll pendant le drag de la pièce uniquement
 
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-
                 const deltaX = clientX - startX;
                 const deltaY = clientY - startY;
 
@@ -529,7 +483,12 @@
                 if (!isDragging) return;
                 isDragging = false;
                 el.classList.remove('dragging');
-                el.style.zIndex = 20; // Retour au z-index par défaut pour les pièces
+                el.style.zIndex = 20;
+                
+                // Réactive le scroll de la page
+                document.body.style.overflow = '';
+                if(window.innerWidth <= 768) document.body.style.overflowY = 'auto';
+
                 checkSnap(el);
             };
 
@@ -544,15 +503,16 @@
         function checkSnap(el) {
             const containerW = container.offsetWidth;
             const containerH = container.offsetHeight;
-
             const currentX = (el.offsetLeft / containerW) * 100;
             const currentY = (el.offsetTop / containerH) * 100;
-
             const targetX = parseFloat(el.dataset.targetX);
             const targetY = parseFloat(el.dataset.targetY);
-
+            
+            // Calcul distance
             const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
-            const threshold = window.innerWidth < 600 ? 15 : 8;
+            
+            // Seuil plus tolérant sur mobile
+            const threshold = window.innerWidth < 600 ? 12 : 8;
 
             if (dist < threshold) {
                 snapPiece(el, targetX, targetY);
@@ -563,6 +523,9 @@
             el.style.left = `${x}%`;
             el.style.top = `${y}%`;
             el.classList.add('locked');
+            // Petit son pop ou vibration haptique si supporté
+            if (navigator.vibrate) navigator.vibrate(20);
+            
             lockedCount++;
             if (lockedCount === totalPieces) onWin();
         }
@@ -579,13 +542,9 @@
             }, 500);
         }
 
-        // --- NOUVEAU FEU D'ARTIFICE (canvas-confetti) ---
         function triggerConfetti() {
             var count = 200;
-            var defaults = {
-                origin: { y: 1 }, // Part du bas
-                zIndex: 9999
-            };
+            var defaults = { origin: { y: 1 }, zIndex: 9999 };
 
             function fire(particleRatio, opts) {
                 confetti(Object.assign({}, defaults, opts, {
@@ -593,34 +552,11 @@
                 }));
             }
 
-            // Explosion en plusieurs salves pour un effet réaliste
-            fire(0.25, {
-                spread: 26,
-                startVelocity: 55,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
-            fire(0.2, {
-                spread: 60,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
-            fire(0.35, {
-                spread: 100,
-                decay: 0.91,
-                scalar: 0.8,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
-            fire(0.1, {
-                spread: 120,
-                startVelocity: 25,
-                decay: 0.92,
-                scalar: 1.2,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
-            fire(0.1, {
-                spread: 120,
-                startVelocity: 45,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
+            fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.1, { spread: 120, startVelocity: 45, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
         }
     </script>
 </body>
