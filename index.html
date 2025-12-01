@@ -410,10 +410,6 @@
             ctx.restore();
 
             // Style responsive
-            // Pour que les pièces aient la bonne taille visuelle par rapport au conteneur (qui est en %), 
-            // on doit ajuster leur largeur en pourcentage du conteneur parent
-            // totalW est la largeur du canvas (pièce + bords), img.width est la largeur totale de l'image source
-            // Donc la largeur en % est (totalW / img.width) * 100
             canvas.style.width = `${(totalW / (img.width)) * 100}%`;
             canvas.style.height = 'auto'; // Garde le ratio
             
@@ -450,43 +446,53 @@
 
         function scramblePieces() {
             const containerRect = container.getBoundingClientRect();
-            // Important : Utiliser les dimensions réelles du document pour permettre le scroll
-            const docWidth = document.body.clientWidth;
-            const docHeight = Math.max(document.body.clientHeight, window.innerHeight); 
-            const isMobile = window.innerWidth <= 768;
+            // On utilise window.innerHeight car overflow est hidden, donc pas de scroll
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const isMobile = winW <= 768;
 
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
                 
-                const pW = piece.offsetWidth || 100;
-                const pH = piece.offsetHeight || 100;
+                const pW = piece.getBoundingClientRect().width; // Taille visuelle réelle
+                const pH = piece.getBoundingClientRect().height;
                 const zones = [];
 
-                // Zone Gauche (Desktop uniquement)
-                if (!isMobile && containerRect.left > pW * 0.6) {
-                    zones.push({ minX: 10, maxX: containerRect.left - pW * 0.6, minY: containerRect.top, maxY: containerRect.bottom - pH });
-                }
-                // Zone Droite (Desktop uniquement)
-                if (!isMobile && (docWidth - containerRect.right) > pW * 0.6) {
-                    zones.push({ minX: containerRect.right + pW * 0.2, maxX: docWidth - pW - 10, minY: containerRect.top, maxY: containerRect.bottom - pH });
-                }
-                // Zone Bas (Mobile & Desktop)
-                // Sur mobile, on force l'utilisation de l'espace vertical scrollable
-                const bottomStartY = containerRect.bottom + 20;
-                const bottomEndY = isMobile ? (bottomStartY + 300) : (docHeight - pH - 20); // 300px d'espace de dispersion sur mobile
+                if (!isMobile) {
+                    // Desktop : côtés et bas
+                    if (containerRect.left > pW * 0.6) zones.push({ minX: 10, maxX: containerRect.left - pW * 0.6, minY: containerRect.top, maxY: containerRect.bottom - pH });
+                    if ((winW - containerRect.right) > pW * 0.6) zones.push({ minX: containerRect.right + pW * 0.2, maxX: winW - pW - 10, minY: containerRect.top, maxY: containerRect.bottom - pH });
+                    const bottomStartY = containerRect.bottom + 20;
+                    if (winH - bottomStartY > pH) zones.push({ minX: 10, maxX: winW - pW - 10, minY: bottomStartY, maxY: winH - pH - 10 });
+                } else {
+                    // Mobile : Uniquement en bas, dans l'espace restant STICTEMENT VISIBLE
+                    // On force les pièces à rester entre le bas du puzzle et le bas de l'écran
+                    const bottomStartY = containerRect.bottom + 10;
+                    // On laisse une petite marge en bas (10px) pour ne pas coller au bord
+                    const safeBottomY = winH - pH - 10; 
+                    
+                    // Si l'espace est trop petit, on triche un peu en remontant le startY (chevauchement léger avec le puzzle)
+                    // mais on priorise la visibilité totale
+                    const effectiveStartY = Math.min(bottomStartY, safeBottomY - 10); 
 
-                zones.push({ minX: 10, maxX: docWidth - pW - 10, minY: bottomStartY, maxY: bottomEndY });
+                    zones.push({ 
+                        minX: 10, 
+                        maxX: winW - pW - 10, 
+                        minY: effectiveStartY, 
+                        maxY: safeBottomY 
+                    });
+                }
 
-                // Sélection zone
+                // Fallback global
+                if (zones.length === 0) zones.push({ minX: 0, maxX: winW - pW, minY: winH - pH, maxY: winH - pH });
+
                 const zone = zones[Math.floor(Math.random() * zones.length)];
                 
-                // Calcul position
                 const safeMaxX = Math.max(zone.minX, zone.maxX);
                 const safeMaxY = Math.max(zone.minY, zone.maxY);
                 const pageX = zone.minX + Math.random() * (safeMaxX - zone.minX);
                 const pageY = zone.minY + Math.random() * (safeMaxY - zone.minY);
 
-                // Application
                 piece.style.left = `${pageX - containerRect.left}px`;
                 piece.style.top = `${pageY - containerRect.top}px`;
             });
