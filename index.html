@@ -25,38 +25,36 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            /* Hauteur min 100vh pour couvrir l'écran, mais hauteur auto pour permettre le scroll */
-            min-height: 100vh;
+            height: 100vh;
             width: 100%;
-            overflow: hidden; /* Par défaut hidden sur desktop */
+            overflow: hidden; /* SCROLL DÉSACTIVÉ PARTOUT */
             position: relative;
         }
 
         /* --- RESPONSIVE MOBILE --- */
         @media (max-width: 768px) {
             body {
-                display: block; /* Change flex en block pour permettre le flux naturel */
-                padding-top: 40px; /* Marge en haut */
-                overflow-y: auto; /* Active le scroll vertical sur mobile ! */
-                overflow-x: hidden;
-                height: auto;
-                /* On réactive le touch-action sur le body pour permettre le scroll */
-                touch-action: pan-y; 
+                /* Sur mobile, on garde flex pour centrer verticalement */
+                justify-content: flex-start; /* On commence en haut */
+                padding-top: 20px; 
             }
 
             #game-ui {
-                margin-bottom: 20px !important; /* Moins d'espace perdu en haut */
-                margin-top: 0;
+                margin-bottom: 20px !important;
+                margin-top: 10px;
             }
 
             #puzzle-container {
-                margin: 0 auto 150px auto; /* Marge auto pour centrer + espace en bas pour les pièces */
-                width: 85vw !important; /* Un peu plus petit pour laisser des marges */
+                /* MODIFICATION MOBILE : On limite la taille pour laisser de la place aux pièces */
+                width: auto !important; 
+                max-width: 90vw;
+                height: 45vh !important; /* Force le puzzle à ne prendre que 45% de la hauteur */
+                margin: 0 auto !important;
             }
             
             /* Ajustement de l'image de fond sur mobile */
             #background-container {
-                height: 40vh !important; /* Moins haut sur mobile pour ne pas gêner */
+                height: 35vh !important; 
             }
         }
 
@@ -86,7 +84,7 @@
         /* --- UI ELEMENTS --- */
         #game-ui {
             text-align: center;
-            margin-bottom: 60px; 
+            margin-bottom: 40px; 
             z-index: 50; 
             pointer-events: none;
             width: 90%;
@@ -95,13 +93,13 @@
         }
 
         h1 {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 400;
             margin: 0;
             opacity: 0.8;
             transition: opacity 0.5s ease;
             text-shadow: 0 1px 0 rgba(255,255,255,0.8);
-            padding: 0 10px; /* Petite marge de sécurité pour le texte */
+            padding: 0 10px;
         }
 
         .instruction-highlight {
@@ -192,7 +190,8 @@
                 bottom: -100px;
             }
             #success-message.visible {
-                bottom: 30px;
+                bottom: 50%; /* Centré ou légèrement en bas */
+                transform: translate(-50%, 50%);
             }
         }
 
@@ -296,7 +295,12 @@
         
         img.onload = () => {
             const ratio = img.width / img.height;
-            container.style.aspectRatio = `${ratio}`;
+            // On applique le ratio seulement si on n'est pas contraint par la hauteur mobile CSS
+            // Le CSS gère la taille, mais on garde le ratio pour le calcul interne
+            if(window.innerWidth > 768) {
+                container.style.aspectRatio = `${ratio}`;
+            }
+            
             guide.style.backgroundImage = `url('${CONFIG.guideSrc}')`;
             
             const guideTester = new Image();
@@ -311,6 +315,12 @@
         img.onerror = () => { alert("⚠️ Erreur : L'image 'puzzle.png' n'a pas été trouvée."); };
 
         function initPuzzle() {
+            // Sur mobile, on recalcule la taille des pièces pour qu'elles rentrent dans le conteneur CSS contraint
+            // On utilise offsetWidth/Height qui sont les dimensions réelles affichées
+            const actualW = container.offsetWidth;
+            const actualH = container.offsetHeight;
+            
+            // Pour le canvas, on peut garder une haute résolution, mais pour l'affichage CSS c'est important
             const basePieceW = img.width / CONFIG.cols;
             const basePieceH = img.height / CONFIG.rows;
             const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
@@ -357,27 +367,23 @@
             ctx.closePath();
             ctx.clip();
 
-            // CORRECTION ANTI-DISTORSION : Calcul des coordonnées sécurisées
             const srcX = col * w - offsetX;
             const srcY = row * h - offsetY;
             const srcW = totalW;
             const srcH = totalH;
 
-            // On s'assure de ne jamais demander de pixels en dehors de l'image (clamp)
             const safeSrcX = Math.max(0, srcX);
             const safeSrcY = Math.max(0, srcY);
             const safeSrcW = Math.min(img.width, srcX + srcW) - safeSrcX;
             const safeSrcH = Math.min(img.height, srcY + srcH) - safeSrcY;
 
-            // On calcule où ces pixels doivent atterrir sur le canvas
-            const destX = safeSrcX - srcX; // Décalage si on a coupé à gauche
-            const destY = safeSrcY - srcY; // Décalage si on a coupé en haut
+            const destX = safeSrcX - srcX; 
+            const destY = safeSrcY - srcY; 
             
-            // On dessine uniquement la partie valide de l'image
             if (safeSrcW > 0 && safeSrcH > 0) {
                 ctx.drawImage(img, 
-                    safeSrcX, safeSrcY, safeSrcW, safeSrcH, // Source (dans l'image)
-                    destX, destY, safeSrcW, safeSrcH        // Destination (sur le canvas)
+                    safeSrcX, safeSrcY, safeSrcW, safeSrcH, 
+                    destX, destY, safeSrcW, safeSrcH        
                 );
             }
 
@@ -386,8 +392,12 @@
             ctx.restore();
 
             // Style responsive
-            canvas.style.width = `${(totalW / (img.width)) * 100}%`;
-            canvas.style.height = 'auto';
+            // Pour que les pièces aient la bonne taille visuelle par rapport au conteneur (qui est en %), 
+            // on doit ajuster leur largeur en pourcentage du conteneur parent
+            // totalW est la largeur du canvas (pièce + bords), img.width est la largeur totale de l'image source
+            // Donc la largeur en % est (totalW / img.width) * 100
+            canvas.style.width = `${(totalW / img.width) * 100}%`;
+            canvas.style.height = 'auto'; // Garde le ratio
             
             const pctPerPixelX = 100 / img.width;
             const pctPerPixelY = 100 / img.height;
@@ -422,43 +432,48 @@
 
         function scramblePieces() {
             const containerRect = container.getBoundingClientRect();
-            // Important : Utiliser les dimensions réelles du document pour permettre le scroll
-            const docWidth = document.body.clientWidth;
-            const docHeight = Math.max(document.body.clientHeight, window.innerHeight); 
-            const isMobile = window.innerWidth <= 768;
+            // On utilise window.innerHeight car overflow est hidden, donc pas de scroll
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const isMobile = winW <= 768;
 
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
                 
-                const pW = piece.offsetWidth || 100;
-                const pH = piece.offsetHeight || 100;
+                const pW = piece.getBoundingClientRect().width; // Taille visuelle réelle
+                const pH = piece.getBoundingClientRect().height;
                 const zones = [];
 
-                // Zone Gauche (Desktop uniquement)
-                if (!isMobile && containerRect.left > pW * 0.6) {
-                    zones.push({ minX: 10, maxX: containerRect.left - pW * 0.6, minY: containerRect.top, maxY: containerRect.bottom - pH });
+                if (!isMobile) {
+                    // Desktop : côtés et bas
+                    if (containerRect.left > pW * 0.6) zones.push({ minX: 10, maxX: containerRect.left - pW * 0.6, minY: containerRect.top, maxY: containerRect.bottom - pH });
+                    if ((winW - containerRect.right) > pW * 0.6) zones.push({ minX: containerRect.right + pW * 0.2, maxX: winW - pW - 10, minY: containerRect.top, maxY: containerRect.bottom - pH });
+                    const bottomStartY = containerRect.bottom + 20;
+                    if (winH - bottomStartY > pH) zones.push({ minX: 10, maxX: winW - pW - 10, minY: bottomStartY, maxY: winH - pH - 10 });
+                } else {
+                    // Mobile : Uniquement en bas, dans l'espace restant
+                    // Le container fait 45vh max, il reste environ 50vh en bas (moins marges)
+                    const bottomStartY = containerRect.bottom + 10;
+                    const safeBottomY = winH - pH - 10; // On garde une marge en bas de l'écran
+                    
+                    if (safeBottomY > bottomStartY) {
+                        zones.push({ minX: 10, maxX: winW - pW - 10, minY: bottomStartY, maxY: safeBottomY });
+                    } else {
+                        // Fallback critique si pas de place : on superpose légèrement sur le bas du puzzle
+                        zones.push({ minX: 10, maxX: winW - pW - 10, minY: winH - pH - 50, maxY: winH - pH - 10 });
+                    }
                 }
-                // Zone Droite (Desktop uniquement)
-                if (!isMobile && (docWidth - containerRect.right) > pW * 0.6) {
-                    zones.push({ minX: containerRect.right + pW * 0.2, maxX: docWidth - pW - 10, minY: containerRect.top, maxY: containerRect.bottom - pH });
-                }
-                // Zone Bas (Mobile & Desktop)
-                // Sur mobile, on force l'utilisation de l'espace vertical scrollable
-                const bottomStartY = containerRect.bottom + 20;
-                const bottomEndY = isMobile ? (bottomStartY + 300) : (docHeight - pH - 20); // 300px d'espace de dispersion sur mobile
 
-                zones.push({ minX: 10, maxX: docWidth - pW - 10, minY: bottomStartY, maxY: bottomEndY });
+                // Fallback global
+                if (zones.length === 0) zones.push({ minX: 0, maxX: winW - pW, minY: winH - pH, maxY: winH - pH });
 
-                // Sélection zone
                 const zone = zones[Math.floor(Math.random() * zones.length)];
                 
-                // Calcul position
                 const safeMaxX = Math.max(zone.minX, zone.maxX);
                 const safeMaxY = Math.max(zone.minY, zone.maxY);
                 const pageX = zone.minX + Math.random() * (safeMaxX - zone.minX);
                 const pageY = zone.minY + Math.random() * (safeMaxY - zone.minY);
 
-                // Application
                 piece.style.left = `${pageX - containerRect.left}px`;
                 piece.style.top = `${pageY - containerRect.top}px`;
             });
@@ -469,15 +484,8 @@
             let startX, startY, initialLeft, initialTop, isDragging = false;
 
             const onStart = (e) => {
-                if (el.classList.contains('locked')) {
-                    // Si on touche une pièce verrouillée, on peut juste lancer un petit effet ou rien faire
-                    // Ici on ne fait rien pour ne pas déverrouiller accidentellement
-                    return; 
-                }
-                
-                // Empêche le comportement par défaut (scroll) seulement sur la pièce
-                if(e.type === 'touchstart') document.body.style.overflow = 'hidden';
-
+                if (el.classList.contains('locked')) return;
+                // Pas besoin de bloquer le scroll du body car overflow: hidden
                 isDragging = true;
                 el.classList.add('dragging');
                 
@@ -492,7 +500,7 @@
 
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault(); // Empêche le scroll pendant le drag de la pièce uniquement
+                e.preventDefault(); 
 
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
@@ -508,11 +516,6 @@
                 isDragging = false;
                 el.classList.remove('dragging');
                 el.style.zIndex = 20;
-                
-                // Réactive le scroll de la page
-                document.body.style.overflow = '';
-                if(window.innerWidth <= 768) document.body.style.overflowY = 'auto';
-
                 checkSnap(el);
             };
 
@@ -547,7 +550,6 @@
             el.style.left = `${x}%`;
             el.style.top = `${y}%`;
             el.classList.add('locked');
-            // Petit son pop ou vibration haptique si supporté
             if (navigator.vibrate) navigator.vibrate(20);
             
             lockedCount++;
