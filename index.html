@@ -12,47 +12,50 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* Empêche le zoom/scroll par défaut sur certains éléments */
+            touch-action: none; /* Empêche le zoom/scroll par défaut */
         }
 
-        body {
+        html, body {
             margin: 0;
             padding: 0;
             background-color: #ffffff; 
             color: #333;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            
+            /* VERROUILLAGE STRICT DU SCROLL */
+            width: 100%;
+            height: 100%; /* Plus fiable que 100vh sur mobile */
+            overflow: hidden; 
+            overscroll-behavior: none; /* Empêche le rebond élastique sur iOS */
+            position: fixed; /* Cloue la page à l'écran */
+        }
+
+        body {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            width: 100%;
-            overflow: hidden; /* SCROLL DÉSACTIVÉ PARTOUT */
-            position: relative;
         }
 
         /* --- RESPONSIVE MOBILE --- */
         @media (max-width: 768px) {
             body {
-                /* Sur mobile, on garde flex pour centrer verticalement */
-                justify-content: flex-start; /* On commence en haut */
+                justify-content: flex-start; 
                 padding-top: 20px; 
             }
 
             #game-ui {
-                margin-bottom: 20px !important;
+                margin-bottom: 10px !important; /* Réduit encore l'espace pour garantir que tout rentre */
                 margin-top: 10px;
             }
 
             #puzzle-container {
-                /* MODIFICATION MOBILE : On limite la taille pour laisser de la place aux pièces */
                 width: auto !important; 
                 max-width: 90vw;
-                height: 45vh !important; /* Force le puzzle à ne prendre que 45% de la hauteur */
+                height: 45vh !important; 
                 margin: 0 auto !important;
             }
             
-            /* Ajustement de l'image de fond sur mobile */
             #background-container {
                 height: 35vh !important; 
             }
@@ -186,11 +189,13 @@
         /* Ajustement position message sur mobile */
         @media (max-width: 768px) {
             #success-message {
-                position: fixed; /* Fixe pour qu'il soit toujours visible */
+                position: fixed; 
                 bottom: -100px;
+                /* On remonte un peu le message pour qu'il soit bien visible */
+                z-index: 200;
             }
             #success-message.visible {
-                bottom: 50%; /* Centré ou légèrement en bas */
+                bottom: 40%; /* Centré un peu plus bas */
                 transform: translate(-50%, 50%);
             }
         }
@@ -432,48 +437,43 @@
 
         function scramblePieces() {
             const containerRect = container.getBoundingClientRect();
-            // On utilise window.innerHeight car overflow est hidden, donc pas de scroll
-            const winW = window.innerWidth;
-            const winH = window.innerHeight;
-            const isMobile = winW <= 768;
+            // Important : Utiliser les dimensions réelles du document pour permettre le scroll
+            const docWidth = document.body.clientWidth;
+            const docHeight = Math.max(document.body.clientHeight, window.innerHeight); 
+            const isMobile = window.innerWidth <= 768;
 
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
                 
-                const pW = piece.getBoundingClientRect().width; // Taille visuelle réelle
-                const pH = piece.getBoundingClientRect().height;
+                const pW = piece.offsetWidth || 100;
+                const pH = piece.offsetHeight || 100;
                 const zones = [];
 
-                if (!isMobile) {
-                    // Desktop : côtés et bas
-                    if (containerRect.left > pW * 0.6) zones.push({ minX: 10, maxX: containerRect.left - pW * 0.6, minY: containerRect.top, maxY: containerRect.bottom - pH });
-                    if ((winW - containerRect.right) > pW * 0.6) zones.push({ minX: containerRect.right + pW * 0.2, maxX: winW - pW - 10, minY: containerRect.top, maxY: containerRect.bottom - pH });
-                    const bottomStartY = containerRect.bottom + 20;
-                    if (winH - bottomStartY > pH) zones.push({ minX: 10, maxX: winW - pW - 10, minY: bottomStartY, maxY: winH - pH - 10 });
-                } else {
-                    // Mobile : Uniquement en bas, dans l'espace restant
-                    // Le container fait 45vh max, il reste environ 50vh en bas (moins marges)
-                    const bottomStartY = containerRect.bottom + 10;
-                    const safeBottomY = winH - pH - 10; // On garde une marge en bas de l'écran
-                    
-                    if (safeBottomY > bottomStartY) {
-                        zones.push({ minX: 10, maxX: winW - pW - 10, minY: bottomStartY, maxY: safeBottomY });
-                    } else {
-                        // Fallback critique si pas de place : on superpose légèrement sur le bas du puzzle
-                        zones.push({ minX: 10, maxX: winW - pW - 10, minY: winH - pH - 50, maxY: winH - pH - 10 });
-                    }
+                // Zone Gauche (Desktop uniquement)
+                if (!isMobile && containerRect.left > pW * 0.6) {
+                    zones.push({ minX: 10, maxX: containerRect.left - pW * 0.6, minY: containerRect.top, maxY: containerRect.bottom - pH });
                 }
+                // Zone Droite (Desktop uniquement)
+                if (!isMobile && (docWidth - containerRect.right) > pW * 0.6) {
+                    zones.push({ minX: containerRect.right + pW * 0.2, maxX: docWidth - pW - 10, minY: containerRect.top, maxY: containerRect.bottom - pH });
+                }
+                // Zone Bas (Mobile & Desktop)
+                // Sur mobile, on force l'utilisation de l'espace vertical scrollable
+                const bottomStartY = containerRect.bottom + 20;
+                const bottomEndY = isMobile ? (bottomStartY + 300) : (docHeight - pH - 20); // 300px d'espace de dispersion sur mobile
 
-                // Fallback global
-                if (zones.length === 0) zones.push({ minX: 0, maxX: winW - pW, minY: winH - pH, maxY: winH - pH });
+                zones.push({ minX: 10, maxX: docWidth - pW - 10, minY: bottomStartY, maxY: bottomEndY });
 
+                // Sélection zone
                 const zone = zones[Math.floor(Math.random() * zones.length)];
                 
+                // Calcul position
                 const safeMaxX = Math.max(zone.minX, zone.maxX);
                 const safeMaxY = Math.max(zone.minY, zone.maxY);
                 const pageX = zone.minX + Math.random() * (safeMaxX - zone.minX);
                 const pageY = zone.minY + Math.random() * (safeMaxY - zone.minY);
 
+                // Application
                 piece.style.left = `${pageX - containerRect.left}px`;
                 piece.style.top = `${pageY - containerRect.top}px`;
             });
@@ -484,8 +484,15 @@
             let startX, startY, initialLeft, initialTop, isDragging = false;
 
             const onStart = (e) => {
-                if (el.classList.contains('locked')) return;
-                // Pas besoin de bloquer le scroll du body car overflow: hidden
+                if (el.classList.contains('locked')) {
+                    // Si on touche une pièce verrouillée, on peut juste lancer un petit effet ou rien faire
+                    // Ici on ne fait rien pour ne pas déverrouiller accidentellement
+                    return; 
+                }
+                
+                // Empêche le comportement par défaut (scroll) seulement sur la pièce
+                if(e.type === 'touchstart') document.body.style.overflow = 'hidden';
+
                 isDragging = true;
                 el.classList.add('dragging');
                 
@@ -500,7 +507,7 @@
 
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault(); 
+                e.preventDefault(); // Empêche le scroll pendant le drag de la pièce uniquement
 
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
@@ -516,6 +523,11 @@
                 isDragging = false;
                 el.classList.remove('dragging');
                 el.style.zIndex = 20;
+                
+                // Réactive le scroll de la page
+                document.body.style.overflow = '';
+                if(window.innerWidth <= 768) document.body.style.overflowY = 'auto';
+
                 checkSnap(el);
             };
 
@@ -550,6 +562,7 @@
             el.style.left = `${x}%`;
             el.style.top = `${y}%`;
             el.classList.add('locked');
+            // Petit son pop ou vibration haptique si supporté
             if (navigator.vibrate) navigator.vibrate(20);
             
             lockedCount++;
