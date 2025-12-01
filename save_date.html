@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Save the Date - Puzzle</title>
+    <!-- Import de la librairie Canvas Confetti pour un effet pro -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        /* --- RESET & BASE --- */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff; 
+            color: #333;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- ARRIÈRE-PLAN --- */
+        #background-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: auto; 
+            z-index: 0;   
+            pointer-events: none;
+            
+            display: flex;
+            align-items: flex-end; 
+            justify-content: center;
+        }
+
+        /* L'IMAGE ELLE-MÊME */
+        #bg-img {
+            display: block;
+            width: 100%;
+            height: auto; 
+            opacity: 1; 
+        }
+
+        /* --- UI ELEMENTS --- */
+        #game-ui {
+            text-align: center;
+            margin-bottom: 60px; 
+            z-index: 50; 
+            pointer-events: none;
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            font-weight: 400;
+            margin: 0;
+            opacity: 0.8;
+            transition: opacity 0.5s ease;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+        }
+
+        .instruction-highlight {
+            font-weight: 600;
+            color: #dfa668;
+        }
+
+        /* --- PUZZLE CONTAINER --- */
+        #puzzle-container {
+            position: relative;
+            z-index: 50; 
+            width: 90vw;
+            max-width: 600px;
+            aspect-ratio: 4/3; 
+            background-color: #ffffff; 
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: background-color 0.5s;
+        }
+
+        /* Le guide (image de fond atténuée) */
+        #puzzle-guide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: 100% 100%;
+            opacity: 0.3; 
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            z-index: 0;
+        }
+
+        /* --- PIECES --- */
+        .piece {
+            position: absolute;
+            cursor: grab;
+            z-index: 60;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+            transition: transform 0.1s;
+            touch-action: none;
+        }
+
+        .piece.dragging {
+            z-index: 100;
+            cursor: grabbing;
+            transform: scale(1.05);
+            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
+        }
+
+        .piece.locked {
+            z-index: 40;
+            cursor: grab;
+            filter: none;
+            transition: all 0.3s ease;
+        }
+
+        /* --- SUCCESS STATE --- */
+        #success-message {
+            position: absolute;
+            bottom: -80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            text-align: center;
+            opacity: 0;
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 90%;
+            max-width: 400px;
+            z-index: 200;
+        }
+
+        #success-message.visible {
+            bottom: 20px;
+            opacity: 1;
+        }
+
+        @media (min-height: 800px) {
+             #success-message.visible {
+                bottom: 10%;
+             }
+        }
+
+        #success-message h2 {
+            margin: 0 0 5px 0;
+            color: #2c3e50;
+            font-size: 1.4rem;
+        }
+
+        #success-message p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.95rem;
+        }
+
+        /* Animation de fin */
+        .puzzle-complete .piece {
+            filter: none !important;
+        }
+        
+        .puzzle-complete #puzzle-guide {
+            opacity: 0;
+        }
+        
+        .puzzle-complete#puzzle-container {
+            background-color: transparent;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Structure HTML pour le fond -->
+    <div id="background-container">
+        <img id="bg-img" src="" alt="">
+    </div>
+
+    <div id="game-ui">
+        <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
+    </div>
+
+    <div id="puzzle-container">
+        <div id="puzzle-guide"></div>
+        <!-- Les pièces (Canvas) seront générées ici -->
+    </div>
+
+    <div id="success-message">
+        <h2>Félicitations !</h2>
+        <p> Vous avez maintenant la date du mariage ! Hâte de vous y voir 🥰</p>
+    </div>
+
+    <script>
+        // CONFIGURATION
+        const CONFIG = {
+            imageSrc: 'puzzle.png', 
+            guideSrc: 'guide.jpg', 
+            rows: 2,
+            cols: 3,
+            snapThreshold: 0.15,
+            tabSizePercent: 20
+        };
+
+        const container = document.getElementById('puzzle-container');
+        const guide = document.getElementById('puzzle-guide');
+        const instructionText = document.getElementById('instruction-text');
+        const successMsg = document.getElementById('success-message');
+
+        // --- SCRIPT INTELLIGENT DE CHARGEMENT DU FOND ---
+        const possibleBackgrounds = [
+            'bg.jpg', 
+            'bg.jpeg', 
+            'bg.png', 
+            'background.jpg', 
+            'background.jpeg', 
+            'background.png',
+            'Background.jpg' 
+        ];
+        
+        const bgImgElement = document.getElementById('bg-img');
+        
+        function tryLoadBackground(index) {
+            if (index >= possibleBackgrounds.length) {
+                console.warn("Aucun fond trouvé. Vérifiez que le fichier est bien présent.");
+                return;
+            }
+            
+            const currentName = possibleBackgrounds[index];
+            const tester = new Image();
+            
+            tester.onload = function() {
+                bgImgElement.src = currentName;
+            };
+            
+            tester.onerror = function() {
+                tryLoadBackground(index + 1);
+            };
+            
+            tester.src = currentName;
+        }
+        
+        tryLoadBackground(0);
+
+
+        // --- LOGIQUE DU PUZZLE ---
+        let pieces = [];
+        let lockedCount = 0;
+        const totalPieces = CONFIG.rows * CONFIG.cols;
+
+        const JIGSAW_SHAPES = [
+            [0, 1, 1, 0],   // R0 C0
+            [0, -1, -1, -1], // R0 C1
+            [0, 0, 1, 1],   // R0 C2
+            [-1, -1, 0, 0], // R1 C0
+            [1, -1, 0, 1],  // R1 C1
+            [-1, 0, 0, 1]   // R1 C2
+        ];
+
+        const img = new Image();
+        img.src = CONFIG.imageSrc;
+        
+        img.onload = () => {
+            const ratio = img.width / img.height;
+            container.style.aspectRatio = `${ratio}`;
+            
+            guide.style.backgroundImage = `url('${CONFIG.guideSrc}')`;
+            
+            const guideTester = new Image();
+            guideTester.src = CONFIG.guideSrc;
+            guideTester.onerror = () => {
+                console.warn("Guide spécifique non trouvé, utilisation de l'image du puzzle.");
+                guide.style.backgroundImage = `url('${CONFIG.imageSrc}')`;
+            };
+
+            initPuzzle();
+        };
+
+        img.onerror = () => {
+            alert("⚠️ Erreur Critique : L'image 'puzzle.png' n'a pas été trouvée.");
+        };
+
+        function initPuzzle() {
+            const basePieceW = img.width / CONFIG.cols;
+            const basePieceH = img.height / CONFIG.rows;
+            const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
+
+            for (let r = 0; r < CONFIG.rows; r++) {
+                for (let c = 0; c < CONFIG.cols; c++) {
+                    const shapeIndex = r * CONFIG.cols + c;
+                    createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, JIGSAW_SHAPES[shapeIndex]);
+                }
+            }
+
+            scramblePieces();
+        }
+
+        function createCanvasPiece(row, col, w, h, tabSize, shape) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const totalW = w + tabSize * 2;
+            const totalH = h + tabSize * 2;
+            
+            canvas.width = totalW;
+            canvas.height = totalH;
+            canvas.classList.add('piece');
+
+            ctx.save();
+            ctx.beginPath();
+            
+            const offsetX = tabSize;
+            const offsetY = tabSize;
+            
+            let x = offsetX;
+            let y = offsetY;
+            ctx.moveTo(x, y);
+
+            // Haut
+            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize);
+            else ctx.lineTo(x + w, y);
+
+            // Droite
+            x += w;
+            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize);
+            else ctx.lineTo(x, y + h);
+
+            // Bas
+            y += h;
+            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize);
+            else ctx.lineTo(x - w, y);
+
+            // Gauche
+            x -= w;
+            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize);
+            else ctx.lineTo(x, y - h);
+
+            ctx.closePath();
+            ctx.clip();
+            
+            ctx.drawImage(img, 
+                col * w - offsetX, row * h - offsetY,
+                totalW, totalH,
+                0, 0, totalW, totalH
+            );
+            
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Styling responsive
+            const sizeFactorW = totalW / w;
+            const sizeFactorH = totalH / h;
+            
+            canvas.style.width = `${(totalW / (img.width)) * 100}%`;
+            canvas.style.height = 'auto';
+            
+            const pctPerPixelX = 100 / img.width;
+            const pctPerPixelY = 100 / img.height;
+            
+            canvas.dataset.targetX = (col * w - tabSize) * pctPerPixelX;
+            canvas.dataset.targetY = (row * h - tabSize) * pctPerPixelY;
+
+            addDragListeners(canvas);
+            container.appendChild(canvas);
+            pieces.push(canvas);
+        }
+
+        function drawTab(ctx, x, y, dx, dy, size) {
+            const l = Math.sqrt(dx*dx + dy*dy);
+            const neck = l * 0.35;
+            
+            const ux = dx / l;
+            const uy = dy / l;
+            const nx = -uy; 
+            const ny = ux;
+
+            const x1 = x + ux * (l - neck)/2;
+            const y1 = y + uy * (l - neck)/2;
+            
+            const x2 = x + ux * (l + neck)/2;
+            const y2 = y + uy * (l + neck)/2;
+
+            ctx.lineTo(x1, y1);
+
+            const h = Math.abs(size);
+            const sign = size > 0 ? 1 : -1;
+            
+            const cx1 = x1 + nx * sign * h * 0.2;
+            const cy1 = y1 + ny * sign * h * 0.2;
+            
+            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h;
+            const ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
+            
+            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h;
+            const ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
+            
+            const cx2 = x2 + nx * sign * h * 0.2;
+            const cy2 = y2 + ny * sign * h * 0.2;
+
+            ctx.bezierCurveTo(cx1, cy1, tx1, ty1, x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h);
+            ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
+            
+            ctx.lineTo(x + dx, y + dy);
+        }
+
+        function scramblePieces() {
+            const containerRect = container.getBoundingClientRect();
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+
+            pieces.forEach(piece => {
+                if(piece.classList.contains('locked')) return;
+                
+                const pW = piece.offsetWidth || 100;
+                const pH = piece.offsetHeight || 100;
+
+                const zones = [];
+
+                if (containerRect.left > pW * 0.5) {
+                    zones.push({
+                        minX: 10, 
+                        maxX: containerRect.left - pW * 0.5,
+                        minY: containerRect.top, 
+                        maxY: containerRect.bottom - pH
+                    });
+                }
+
+                if ((winW - containerRect.right) > pW * 0.5) {
+                    zones.push({
+                        minX: containerRect.right + pW * 0.2, 
+                        maxX: winW - pW - 10,
+                        minY: containerRect.top, 
+                        maxY: containerRect.bottom - pH
+                    });
+                }
+
+                const bottomSpace = winH - containerRect.bottom;
+                zones.push({
+                    minX: 10,
+                    maxX: winW - pW - 10,
+                    minY: containerRect.bottom + 10,
+                    maxY: winH - pH - 10
+                });
+
+                const zone = zones[Math.floor(Math.random() * zones.length)];
+
+                const safeMaxX = Math.max(zone.minX, zone.maxX);
+                const safeMaxY = Math.max(zone.minY, zone.maxY);
+                
+                const pageX = zone.minX + Math.random() * (safeMaxX - zone.minX);
+                const pageY = zone.minY + Math.random() * (safeMaxY - zone.minY);
+
+                const relativeX = pageX - containerRect.left;
+                const relativeY = pageY - containerRect.top;
+
+                piece.style.left = `${relativeX}px`;
+                piece.style.top = `${relativeY}px`;
+            });
+        }
+
+        function addDragListeners(el) {
+            let startX = 0, startY = 0;
+            let initialLeft = 0, initialTop = 0;
+            let isDragging = false;
+
+            const onStart = (e) => {
+                if (el.classList.contains('locked')) {
+                    el.classList.remove('locked');
+                    lockedCount--;
+                    if (container.classList.contains('puzzle-complete')) {
+                        container.classList.remove('puzzle-complete');
+                        successMsg.classList.remove('visible');
+                        instructionText.style.display = 'block';
+                        requestAnimationFrame(() => instructionText.style.opacity = '0.8');
+                    }
+                }
+                
+                isDragging = true;
+                el.classList.add('dragging');
+
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+
+                startX = clientX;
+                startY = clientY;
+                initialLeft = el.offsetLeft;
+                initialTop = el.offsetTop;
+                el.style.zIndex = 100;
+            };
+
+            const onMove = (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+
+                const deltaX = clientX - startX;
+                const deltaY = clientY - startY;
+
+                el.style.left = `${initialLeft + deltaX}px`;
+                el.style.top = `${initialTop + deltaY}px`;
+            };
+
+            const onEnd = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                el.classList.remove('dragging');
+                el.style.zIndex = 20; // Retour au z-index par défaut pour les pièces
+                checkSnap(el);
+            };
+
+            el.addEventListener('mousedown', onStart);
+            el.addEventListener('touchstart', onStart, { passive: false });
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('mouseup', onEnd);
+            window.addEventListener('touchend', onEnd);
+        }
+
+        function checkSnap(el) {
+            const containerW = container.offsetWidth;
+            const containerH = container.offsetHeight;
+
+            const currentX = (el.offsetLeft / containerW) * 100;
+            const currentY = (el.offsetTop / containerH) * 100;
+
+            const targetX = parseFloat(el.dataset.targetX);
+            const targetY = parseFloat(el.dataset.targetY);
+
+            const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
+            const threshold = window.innerWidth < 600 ? 15 : 8;
+
+            if (dist < threshold) {
+                snapPiece(el, targetX, targetY);
+            }
+        }
+
+        function snapPiece(el, x, y) {
+            el.style.left = `${x}%`;
+            el.style.top = `${y}%`;
+            el.classList.add('locked');
+            lockedCount++;
+            if (lockedCount === totalPieces) onWin();
+        }
+
+        function onWin() {
+            container.classList.add('puzzle-complete');
+            instructionText.style.opacity = '0';
+            setTimeout(() => {
+                if(lockedCount === totalPieces) {
+                    instructionText.style.display = 'none';
+                    successMsg.classList.add('visible');
+                    triggerConfetti();
+                }
+            }, 500);
+        }
+
+        // --- NOUVEAU FEU D'ARTIFICE (canvas-confetti) ---
+        function triggerConfetti() {
+            var count = 200;
+            var defaults = {
+                origin: { y: 1 }, // Part du bas
+                zIndex: 9999
+            };
+
+            function fire(particleRatio, opts) {
+                confetti(Object.assign({}, defaults, opts, {
+                    particleCount: Math.floor(count * particleRatio)
+                }));
+            }
+
+            // Explosion en plusieurs salves pour un effet réaliste
+            fire(0.25, {
+                spread: 26,
+                startVelocity: 55,
+                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
+            });
+            fire(0.2, {
+                spread: 60,
+                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
+            });
+            fire(0.35, {
+                spread: 100,
+                decay: 0.91,
+                scalar: 0.8,
+                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
+            });
+            fire(0.1, {
+                spread: 120,
+                startVelocity: 25,
+                decay: 0.92,
+                scalar: 1.2,
+                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
+            });
+            fire(0.1, {
+                spread: 120,
+                startVelocity: 45,
+                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
+            });
+        }
+    </script>
+</body>
+</html>
