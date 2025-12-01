@@ -356,7 +356,31 @@
 
             ctx.closePath();
             ctx.clip();
-            ctx.drawImage(img, col * w - offsetX, row * h - offsetY, totalW, totalH, 0, 0, totalW, totalH);
+
+            // CORRECTION ANTI-DISTORSION : Calcul des coordonnées sécurisées
+            const srcX = col * w - offsetX;
+            const srcY = row * h - offsetY;
+            const srcW = totalW;
+            const srcH = totalH;
+
+            // On s'assure de ne jamais demander de pixels en dehors de l'image (clamp)
+            const safeSrcX = Math.max(0, srcX);
+            const safeSrcY = Math.max(0, srcY);
+            const safeSrcW = Math.min(img.width, srcX + srcW) - safeSrcX;
+            const safeSrcH = Math.min(img.height, srcY + srcH) - safeSrcY;
+
+            // On calcule où ces pixels doivent atterrir sur le canvas
+            const destX = safeSrcX - srcX; // Décalage si on a coupé à gauche
+            const destY = safeSrcY - srcY; // Décalage si on a coupé en haut
+            
+            // On dessine uniquement la partie valide de l'image
+            if (safeSrcW > 0 && safeSrcH > 0) {
+                ctx.drawImage(img, 
+                    safeSrcX, safeSrcY, safeSrcW, safeSrcH, // Source (dans l'image)
+                    destX, destY, safeSrcW, safeSrcH        // Destination (sur le canvas)
+                );
+            }
+
             ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
             ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
