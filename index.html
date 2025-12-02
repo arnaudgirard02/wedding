@@ -24,10 +24,10 @@
             
             /* VERROUILLAGE STRICT DU SCROLL */
             width: 100%;
-            height: 100%; /* Plus fiable que 100vh sur mobile */
+            height: 100%; 
             overflow: hidden; 
-            overscroll-behavior: none; /* Empêche le rebond élastique sur iOS */
-            position: fixed; /* Cloue la page à l'écran */
+            overscroll-behavior: none; 
+            position: fixed; 
         }
 
         body {
@@ -35,37 +35,6 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-        }
-
-        /* --- RESPONSIVE MOBILE --- */
-        @media (max-width: 768px) {
-            body {
-                justify-content: flex-start; 
-                padding-top: 20px; 
-            }
-
-            #game-ui {
-                margin-bottom: 10px !important; /* Réduit encore l'espace pour garantir que tout rentre */
-                margin-top: 10px;
-                width: 100% !important; /* Prend toute la largeur pour bien centrer le texte */
-                padding: 0 10px;
-            }
-
-            #puzzle-container {
-                /* MODIFICATION : Taille réduite pour éviter d'être coupé (88vw est plus sûr que 95vw) */
-                width: 88vw !important; 
-                max-width: 400px !important; /* Limite la largeur max */
-                /* On laisse la hauteur s'adapter au ratio, mais on limite pour ne pas manger toute la place verticale */
-                height: auto !important; 
-                max-height: 50vh; /* Un peu moins haut pour laisser de la place aux pièces en bas */
-                margin: 0 auto !important;
-                left: 0;
-                right: 0;
-            }
-            
-            #background-container {
-                height: 35vh !important; 
-            }
         }
 
         /* --- ARRIÈRE-PLAN --- */
@@ -89,17 +58,21 @@
             width: 100%;
             height: auto; 
             opacity: 1; 
+            /* Pour les très grands écrans, on limite la hauteur de l'image de fond */
+            max-height: 50vh; 
+            object-fit: contain;
+            object-position: bottom;
         }
 
         /* --- UI ELEMENTS --- */
         #game-ui {
             text-align: center;
-            margin-bottom: 30px; 
+            margin-bottom: 20px; 
             z-index: 50; 
             pointer-events: none;
-            width: 90%;
-            max-width: 800px; /* Élargi aussi */
+            width: 100%;
             position: relative;
+            padding: 0 20px;
         }
 
         h1 {
@@ -109,7 +82,6 @@
             opacity: 0.8;
             transition: opacity 0.5s ease;
             text-shadow: 0 1px 0 rgba(255,255,255,0.8);
-            padding: 0 10px;
         }
 
         .instruction-highlight {
@@ -118,24 +90,19 @@
         }
 
         /* --- PUZZLE CONTAINER --- */
+        /* Note: La taille (width/height) est maintenant gérée par JS pour respecter le ratio */
         #puzzle-container {
             position: relative;
             z-index: 50; 
-            
-            /* MODIFICATION : Largeur augmentée pour prendre plus de place */
-            width: 90vw; /* Réduit un peu pour la sécurité */
-            max-width: 1000px; 
-            
-            /* Sécurité verticale : ne jamais dépasser 60% de la hauteur de l'écran pour éviter le scroll */
-            max-height: 60vh; 
-            
-            aspect-ratio: 4/3; 
             
             background-color: #ffffff; 
             
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: background-color 0.5s;
+            
+            /* Important pour que le JS puisse centrer */
+            margin: 0 auto;
         }
 
         /* Le guide (image de fond atténuée) */
@@ -159,7 +126,7 @@
             z-index: 60;
             filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
             transition: transform 0.1s;
-            touch-action: none; /* Important : désactive le scroll quand on touche une pièce */
+            touch-action: none; 
         }
 
         .piece.dragging {
@@ -195,54 +162,21 @@
         }
 
         #success-message.visible {
-            bottom: 20px; /* Position par défaut desktop */
+            bottom: 20px; /* Position par défaut */
             opacity: 1;
         }
         
-        /* Ajustement position message sur mobile */
+        /* Ajustement pour mobile */
         @media (max-width: 768px) {
             #success-message {
-                position: fixed; 
+                position: fixed;
                 bottom: -100px;
-                /* On remonte un peu le message pour qu'il soit bien visible */
                 z-index: 200;
             }
             #success-message.visible {
-                bottom: 40%; /* Centré un peu plus bas */
+                bottom: 50%; 
                 transform: translate(-50%, 50%);
             }
-        }
-
-        @media (min-height: 800px) {
-             #success-message.visible {
-                bottom: 10%;
-             }
-        }
-
-        #success-message h2 {
-            margin: 0 0 5px 0;
-            color: #2c3e50;
-            font-size: 1.4rem;
-        }
-
-        #success-message p {
-            margin: 0;
-            color: #7f8c8d;
-            font-size: 0.95rem;
-        }
-
-        /* Animation de fin */
-        .puzzle-complete .piece {
-            filter: none !important;
-        }
-        
-        .puzzle-complete #puzzle-guide {
-            opacity: 0;
-        }
-        
-        .puzzle-complete#puzzle-container {
-            background-color: transparent;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
         }
 
     </style>
@@ -312,12 +246,13 @@
         img.src = CONFIG.imageSrc;
         
         img.onload = () => {
-            const ratio = img.width / img.height;
-            // On applique le ratio seulement si on n'est pas contraint par la hauteur mobile CSS
-            // Le CSS gère la taille, mais on garde le ratio pour le calcul interne
-            if(window.innerWidth > 768) {
-                container.style.aspectRatio = `${ratio}`;
-            }
+            // Calcul initial de la taille
+            updateContainerSize();
+            // Mise à jour de la taille si on redimensionne la fenêtre
+            window.addEventListener('resize', () => {
+                updateContainerSize();
+                scramblePieces(); // Remélange pour éviter que les pièces sortent
+            });
             
             guide.style.backgroundImage = `url('${CONFIG.guideSrc}')`;
             
@@ -332,13 +267,37 @@
 
         img.onerror = () => { alert("⚠️ Erreur : L'image 'puzzle.png' n'a pas été trouvée."); };
 
-        function initPuzzle() {
-            // Sur mobile, on recalcule la taille des pièces pour qu'elles rentrent dans le conteneur CSS contraint
-            // On utilise offsetWidth/Height qui sont les dimensions réelles affichées
-            const actualW = container.offsetWidth;
-            const actualH = container.offsetHeight;
+        // FONCTION DE REDIMENSIONNEMENT INTELLIGENT
+        function updateContainerSize() {
+            const imgRatio = img.width / img.height;
             
-            // Pour le canvas, on peut garder une haute résolution, mais pour l'affichage CSS c'est important
+            // Espace disponible max (90% largeur, 55% hauteur pour laisser place au texte et aux pièces en bas)
+            const maxW = window.innerWidth * 0.90;
+            const maxH = window.innerHeight * 0.55;
+
+            let newW = maxW;
+            let newH = newW / imgRatio;
+
+            // Si la hauteur calculée dépasse la hauteur max dispo, on se base sur la hauteur
+            if (newH > maxH) {
+                newH = maxH;
+                newW = newH * imgRatio;
+            }
+
+            // Application des dimensions précises
+            container.style.width = `${newW}px`;
+            container.style.height = `${newH}px`;
+            
+            // On limite quand même pour que ce ne soit pas délirant sur écran géant
+            if (newW > 800) {
+                 newW = 800;
+                 newH = newW / imgRatio;
+                 container.style.width = `${newW}px`;
+                 container.style.height = `${newH}px`;
+            }
+        }
+
+        function initPuzzle() {
             const basePieceW = img.width / CONFIG.cols;
             const basePieceH = img.height / CONFIG.rows;
             const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
@@ -349,7 +308,6 @@
                     createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, JIGSAW_SHAPES[shapeIndex]);
                 }
             }
-            // Délai léger pour s'assurer que le DOM est prêt avant de mélanger
             setTimeout(scramblePieces, 100);
         }
 
@@ -385,6 +343,7 @@
             ctx.closePath();
             ctx.clip();
 
+            // Calcul de découpe sécurisé
             const srcX = col * w - offsetX;
             const srcY = row * h - offsetY;
             const srcW = totalW;
@@ -409,9 +368,9 @@
             ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
 
-            // Style responsive
-            canvas.style.width = `${(totalW / (img.width)) * 100}%`;
-            canvas.style.height = 'auto'; // Garde le ratio
+            // Style responsive : largeur en pourcentage du conteneur
+            canvas.style.width = `${(totalW / img.width) * 100}%`;
+            canvas.style.height = 'auto'; 
             
             const pctPerPixelX = 100 / img.width;
             const pctPerPixelY = 100 / img.height;
@@ -446,7 +405,6 @@
 
         function scramblePieces() {
             const containerRect = container.getBoundingClientRect();
-            // On utilise window.innerHeight car overflow est hidden, donc pas de scroll
             const winW = window.innerWidth;
             const winH = window.innerHeight;
             const isMobile = winW <= 768;
@@ -454,39 +412,39 @@
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
                 
-                const pW = piece.getBoundingClientRect().width; // Taille visuelle réelle
+                const pW = piece.getBoundingClientRect().width; 
                 const pH = piece.getBoundingClientRect().height;
                 const zones = [];
 
+                // Calcul des zones de sécurité pour ne pas dépasser l'écran
                 if (!isMobile) {
-                    // Desktop : côtés et bas
-                    if (containerRect.left > pW * 0.6) zones.push({ minX: 10, maxX: containerRect.left - pW * 0.6, minY: containerRect.top, maxY: containerRect.bottom - pH });
-                    if ((winW - containerRect.right) > pW * 0.6) zones.push({ minX: containerRect.right + pW * 0.2, maxX: winW - pW - 10, minY: containerRect.top, maxY: containerRect.bottom - pH });
-                    const bottomStartY = containerRect.bottom + 20;
-                    if (winH - bottomStartY > pH) zones.push({ minX: 10, maxX: winW - pW - 10, minY: bottomStartY, maxY: winH - pH - 10 });
-                } else {
-                    // Mobile : Uniquement en bas, dans l'espace restant STICTEMENT VISIBLE
-                    // On force les pièces à rester entre le bas du puzzle et le bas de l'écran
-                    const bottomStartY = containerRect.bottom + 10;
-                    // On laisse une petite marge en bas (10px) pour ne pas coller au bord
-                    const safeBottomY = winH - pH - 10; 
-                    
-                    // Si l'espace est trop petit, on triche un peu en remontant le startY (chevauchement léger avec le puzzle)
-                    // mais on priorise la visibilité totale
-                    const effectiveStartY = Math.min(bottomStartY, safeBottomY - 10); 
-
+                    // Desktop : On utilise les côtés si possible
+                    if (containerRect.left > pW * 0.8) zones.push({ minX: 20, maxX: containerRect.left - pW * 0.8, minY: containerRect.top, maxY: containerRect.bottom - pH });
+                    if ((winW - containerRect.right) > pW * 0.8) zones.push({ minX: containerRect.right + pW * 0.2, maxX: winW - pW - 20, minY: containerRect.top, maxY: containerRect.bottom - pH });
+                }
+                
+                // Zone Bas (Principale pour Mobile)
+                // Espace entre le bas du puzzle et le bas de l'écran
+                const spaceBelow = winH - containerRect.bottom;
+                
+                if (spaceBelow > pH + 20) {
                     zones.push({ 
-                        minX: 10, 
-                        maxX: winW - pW - 10, 
-                        minY: effectiveStartY, 
-                        maxY: safeBottomY 
+                        minX: 20, 
+                        maxX: winW - pW - 20, 
+                        minY: containerRect.bottom + 10, 
+                        maxY: winH - pH - 10 // On garde une marge en bas
+                    });
+                } else {
+                    // Si vraiment pas de place (écran très petit), on autorise un léger chevauchement sur le bas du puzzle
+                    zones.push({ 
+                        minX: 20, 
+                        maxX: winW - pW - 20, 
+                        minY: winH - pH - 20, 
+                        maxY: winH - pH - 5 
                     });
                 }
 
-                // Fallback global
-                if (zones.length === 0) zones.push({ minX: 0, maxX: winW - pW, minY: winH - pH, maxY: winH - pH });
-
-                const zone = zones[Math.floor(Math.random() * zones.length)];
+                const zone = zones.length > 0 ? zones[Math.floor(Math.random() * zones.length)] : { minX: 0, maxX: 0, minY: 0, maxY: 0 };
                 
                 const safeMaxX = Math.max(zone.minX, zone.maxX);
                 const safeMaxY = Math.max(zone.minY, zone.maxY);
@@ -498,18 +456,11 @@
             });
         }
 
-        // --- DRAG & DROP UNIFIÉ ---
         function addDragListeners(el) {
             let startX, startY, initialLeft, initialTop, isDragging = false;
 
             const onStart = (e) => {
-                if (el.classList.contains('locked')) {
-                    // Si on touche une pièce verrouillée, on peut juste lancer un petit effet ou rien faire
-                    // Ici on ne fait rien pour ne pas déverrouiller accidentellement
-                    return; 
-                }
-                
-                // Empêche le comportement par défaut (scroll) seulement sur la pièce
+                if (el.classList.contains('locked')) return;
                 if(e.type === 'touchstart') document.body.style.overflow = 'hidden';
 
                 isDragging = true;
@@ -526,7 +477,7 @@
 
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault(); // Empêche le scroll pendant le drag de la pièce uniquement
+                e.preventDefault(); 
 
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
@@ -542,11 +493,7 @@
                 isDragging = false;
                 el.classList.remove('dragging');
                 el.style.zIndex = 20;
-                
-                // Réactive le scroll de la page
                 document.body.style.overflow = '';
-                if(window.innerWidth <= 768) document.body.style.overflowY = 'auto';
-
                 checkSnap(el);
             };
 
@@ -566,10 +513,7 @@
             const targetX = parseFloat(el.dataset.targetX);
             const targetY = parseFloat(el.dataset.targetY);
             
-            // Calcul distance
             const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
-            
-            // Seuil plus tolérant sur mobile
             const threshold = window.innerWidth < 600 ? 12 : 8;
 
             if (dist < threshold) {
@@ -581,7 +525,6 @@
             el.style.left = `${x}%`;
             el.style.top = `${y}%`;
             el.classList.add('locked');
-            // Petit son pop ou vibration haptique si supporté
             if (navigator.vibrate) navigator.vibrate(20);
             
             lockedCount++;
