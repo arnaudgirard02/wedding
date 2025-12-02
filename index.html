@@ -4,15 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Save the Date - Puzzle</title>
-    <!-- Import de la librairie Canvas Confetti pour un effet pro -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        /* --- RESET & BASE --- */
         * {
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* Empêche le zoom/scroll par défaut */
+            touch-action: none;
         }
 
         html, body {
@@ -21,13 +19,10 @@
             background-color: #ffffff; 
             color: #333;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            
-            /* VERROUILLAGE STRICT DU SCROLL */
             width: 100%;
             height: 100%; 
             overflow: hidden; 
-            overscroll-behavior: none; 
-            position: fixed; 
+            position: fixed;
         }
 
         body {
@@ -37,31 +32,44 @@
             justify-content: center;
         }
 
+        /* --- RESPONSIVE --- */
+        @media (max-width: 768px) {
+            body {
+                justify-content: flex-start; 
+                padding-top: 15px; /* Un peu d'air en haut */
+            }
+
+            #game-ui {
+                margin-bottom: 10px !important;
+                margin-top: 0px;
+                padding: 0 10px;
+            }
+            
+            /* Sur mobile, le background est plus petit pour ne pas gêner */
+            #background-container {
+                height: 40vh !important; 
+            }
+        }
+
         /* --- ARRIÈRE-PLAN --- */
         #background-container {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            height: auto; 
+            height: 60vh; /* Par défaut sur desktop */
             z-index: 0;   
             pointer-events: none;
-            
             display: flex;
             align-items: flex-end; 
             justify-content: center;
         }
 
-        /* L'IMAGE ELLE-MÊME */
         #bg-img {
             display: block;
             width: 100%;
             height: auto; 
             opacity: 1; 
-            /* Pour les très grands écrans, on limite la hauteur de l'image de fond */
-            max-height: 50vh; 
-            object-fit: contain;
-            object-position: bottom;
         }
 
         /* --- UI ELEMENTS --- */
@@ -71,8 +79,8 @@
             z-index: 50; 
             pointer-events: none;
             width: 100%;
+            max-width: 800px;
             position: relative;
-            padding: 0 20px;
         }
 
         h1 {
@@ -80,8 +88,9 @@
             font-weight: 400;
             margin: 0;
             opacity: 0.8;
-            transition: opacity 0.5s ease;
             text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            padding: 0 10px;
+            line-height: 1.4;
         }
 
         .instruction-highlight {
@@ -90,22 +99,18 @@
         }
 
         /* --- PUZZLE CONTAINER --- */
-        /* Note: La taille (width/height) est maintenant gérée par JS pour respecter le ratio */
         #puzzle-container {
             position: relative;
             z-index: 50; 
-            
+            /* La taille sera définie précisément par JS pour respecter le ratio */
             background-color: #ffffff; 
-            
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: background-color 0.5s;
-            
-            /* Important pour que le JS puisse centrer */
             margin: 0 auto;
+            /* Transition douce si redimensionnement */
+            transition: width 0.3s, height 0.3s, background-color 0.5s;
         }
 
-        /* Le guide (image de fond atténuée) */
         #puzzle-guide {
             position: absolute;
             top: 0;
@@ -126,6 +131,7 @@
             z-index: 60;
             filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
             transition: transform 0.1s;
+            /* CRUCIAL : Empêche le navigateur de scroller quand on bouge une pièce */
             touch-action: none; 
         }
 
@@ -143,7 +149,6 @@
             transition: all 0.3s ease;
         }
 
-        /* --- SUCCESS STATE --- */
         #success-message {
             position: absolute;
             bottom: -80px;
@@ -162,28 +167,55 @@
         }
 
         #success-message.visible {
-            bottom: 20px; /* Position par défaut */
+            bottom: 20px;
             opacity: 1;
         }
         
-        /* Ajustement pour mobile */
         @media (max-width: 768px) {
             #success-message {
                 position: fixed;
                 bottom: -100px;
-                z-index: 200;
             }
             #success-message.visible {
-                bottom: 50%; 
+                bottom: 40%; 
                 transform: translate(-50%, 50%);
             }
         }
 
+        @media (min-height: 800px) {
+             #success-message.visible {
+                bottom: 10%;
+             }
+        }
+
+        #success-message h2 {
+            margin: 0 0 5px 0;
+            color: #2c3e50;
+            font-size: 1.4rem;
+        }
+
+        #success-message p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.95rem;
+        }
+
+        .puzzle-complete .piece {
+            filter: none !important;
+        }
+        
+        .puzzle-complete #puzzle-guide {
+            opacity: 0;
+        }
+        
+        .puzzle-complete#puzzle-container {
+            background-color: transparent;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
 
-    <!-- Structure HTML pour le fond -->
     <div id="background-container">
         <img id="bg-img" src="" alt="">
     </div>
@@ -194,7 +226,6 @@
 
     <div id="puzzle-container">
         <div id="puzzle-guide"></div>
-        <!-- Les pièces (Canvas) seront générées ici -->
     </div>
 
     <div id="success-message">
@@ -218,7 +249,6 @@
         const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
 
-        // --- CHARGEMENT DU FOND ---
         const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg', 'background.jpeg', 'background.png', 'Background.jpg'];
         const bgImgElement = document.getElementById('bg-img');
         
@@ -232,7 +262,6 @@
         }
         tryLoadBackground(0);
 
-        // --- LOGIQUE DU PUZZLE ---
         let pieces = [];
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
@@ -246,16 +275,17 @@
         img.src = CONFIG.imageSrc;
         
         img.onload = () => {
-            // Calcul initial de la taille
-            updateContainerSize();
-            // Mise à jour de la taille si on redimensionne la fenêtre
+            // Calcul et application de la taille initiale
+            resizePuzzleContainer();
+            
+            // Gestionnaire de redimensionnement
             window.addEventListener('resize', () => {
-                updateContainerSize();
-                scramblePieces(); // Remélange pour éviter que les pièces sortent
+                resizePuzzleContainer();
+                // On remélange légèrement les pièces non verrouillées pour qu'elles restent à l'écran
+                scramblePieces();
             });
-            
+
             guide.style.backgroundImage = `url('${CONFIG.guideSrc}')`;
-            
             const guideTester = new Image();
             guideTester.src = CONFIG.guideSrc;
             guideTester.onerror = () => {
@@ -267,34 +297,31 @@
 
         img.onerror = () => { alert("⚠️ Erreur : L'image 'puzzle.png' n'a pas été trouvée."); };
 
-        // FONCTION DE REDIMENSIONNEMENT INTELLIGENT
-        function updateContainerSize() {
+        // --- FONCTION CLÉ POUR LE RESPONSIVE ---
+        function resizePuzzleContainer() {
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
             const imgRatio = img.width / img.height;
             
-            // Espace disponible max (90% largeur, 55% hauteur pour laisser place au texte et aux pièces en bas)
-            const maxW = window.innerWidth * 0.90;
-            const maxH = window.innerHeight * 0.55;
-
-            let newW = maxW;
-            let newH = newW / imgRatio;
-
-            // Si la hauteur calculée dépasse la hauteur max dispo, on se base sur la hauteur
-            if (newH > maxH) {
-                newH = maxH;
-                newW = newH * imgRatio;
-            }
-
-            // Application des dimensions précises
-            container.style.width = `${newW}px`;
-            container.style.height = `${newH}px`;
+            // Limites de taille pour le puzzle
+            // Sur mobile, on limite la hauteur à 45% de l'écran pour laisser 55% aux pièces en bas
+            // Sur desktop, on peut aller jusqu'à 65% de la hauteur
+            const isMobile = winW <= 768;
+            const maxH = isMobile ? winH * 0.45 : winH * 0.65;
+            const maxW = winW * 0.90; // 90% de la largeur max
             
-            // On limite quand même pour que ce ne soit pas délirant sur écran géant
-            if (newW > 800) {
-                 newW = 800;
-                 newH = newW / imgRatio;
-                 container.style.width = `${newW}px`;
-                 container.style.height = `${newH}px`;
+            let finalW = maxW;
+            let finalH = finalW / imgRatio;
+
+            // Si la hauteur calculée est trop grande, on réduit la taille en se basant sur la hauteur max
+            if (finalH > maxH) {
+                finalH = maxH;
+                finalW = finalH * imgRatio;
             }
+            
+            // Application des dimensions
+            container.style.width = `${finalW}px`;
+            container.style.height = `${finalH}px`;
         }
 
         function initPuzzle() {
@@ -324,10 +351,8 @@
 
             ctx.save();
             ctx.beginPath();
-            
             const offsetX = tabSize;
             const offsetY = tabSize;
-            
             let x = offsetX;
             let y = offsetY;
             ctx.moveTo(x, y);
@@ -343,32 +368,27 @@
             ctx.closePath();
             ctx.clip();
 
-            // Calcul de découpe sécurisé
             const srcX = col * w - offsetX;
             const srcY = row * h - offsetY;
             const srcW = totalW;
             const srcH = totalH;
 
+            // Correction anti-distorsion (Clamping)
             const safeSrcX = Math.max(0, srcX);
             const safeSrcY = Math.max(0, srcY);
             const safeSrcW = Math.min(img.width, srcX + srcW) - safeSrcX;
             const safeSrcH = Math.min(img.height, srcY + srcH) - safeSrcY;
-
             const destX = safeSrcX - srcX; 
             const destY = safeSrcY - srcY; 
             
             if (safeSrcW > 0 && safeSrcH > 0) {
-                ctx.drawImage(img, 
-                    safeSrcX, safeSrcY, safeSrcW, safeSrcH, 
-                    destX, destY, safeSrcW, safeSrcH        
-                );
+                ctx.drawImage(img, safeSrcX, safeSrcY, safeSrcW, safeSrcH, destX, destY, safeSrcW, safeSrcH);
             }
 
             ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
             ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
 
-            // Style responsive : largeur en pourcentage du conteneur
             canvas.style.width = `${(totalW / img.width) * 100}%`;
             canvas.style.height = 'auto'; 
             
@@ -416,36 +436,31 @@
                 const pH = piece.getBoundingClientRect().height;
                 const zones = [];
 
-                // Calcul des zones de sécurité pour ne pas dépasser l'écran
                 if (!isMobile) {
-                    // Desktop : On utilise les côtés si possible
+                    // Desktop : Côtés et bas
                     if (containerRect.left > pW * 0.8) zones.push({ minX: 20, maxX: containerRect.left - pW * 0.8, minY: containerRect.top, maxY: containerRect.bottom - pH });
                     if ((winW - containerRect.right) > pW * 0.8) zones.push({ minX: containerRect.right + pW * 0.2, maxX: winW - pW - 20, minY: containerRect.top, maxY: containerRect.bottom - pH });
                 }
                 
-                // Zone Bas (Principale pour Mobile)
-                // Espace entre le bas du puzzle et le bas de l'écran
-                const spaceBelow = winH - containerRect.bottom;
+                // Zone Bas (Commune) - Calcul précis de l'espace restant
+                const bottomStartY = containerRect.bottom + 10;
+                const safeBottomY = winH - pH - 10;
                 
-                if (spaceBelow > pH + 20) {
-                    zones.push({ 
-                        minX: 20, 
-                        maxX: winW - pW - 20, 
-                        minY: containerRect.bottom + 10, 
-                        maxY: winH - pH - 10 // On garde une marge en bas
-                    });
+                if (safeBottomY > bottomStartY) {
+                    // Il y a de la place en bas
+                    zones.push({ minX: 20, maxX: winW - pW - 20, minY: bottomStartY, maxY: safeBottomY });
                 } else {
-                    // Si vraiment pas de place (écran très petit), on autorise un léger chevauchement sur le bas du puzzle
-                    zones.push({ 
-                        minX: 20, 
-                        maxX: winW - pW - 20, 
-                        minY: winH - pH - 20, 
-                        maxY: winH - pH - 5 
-                    });
+                    // Espace critique sur mobile : on autorise un léger chevauchement sur le bas du puzzle
+                    // mais on privilégie la visibilité en bas
+                    zones.push({ minX: 10, maxX: winW - pW - 10, minY: winH - pH - 60, maxY: winH - pH - 5 });
                 }
 
-                const zone = zones.length > 0 ? zones[Math.floor(Math.random() * zones.length)] : { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-                
+                // Fallback si aucune zone n'est valide
+                if (zones.length === 0) {
+                     zones.push({ minX: 10, maxX: winW - pW - 10, minY: winH - pH - 10, maxY: winH - pH - 10 });
+                }
+
+                const zone = zones[Math.floor(Math.random() * zones.length)];
                 const safeMaxX = Math.max(zone.minX, zone.maxX);
                 const safeMaxY = Math.max(zone.minY, zone.maxY);
                 const pageX = zone.minX + Math.random() * (safeMaxX - zone.minX);
@@ -461,11 +476,8 @@
 
             const onStart = (e) => {
                 if (el.classList.contains('locked')) return;
-                if(e.type === 'touchstart') document.body.style.overflow = 'hidden';
-
                 isDragging = true;
                 el.classList.add('dragging');
-                
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
                 startX = clientX;
@@ -478,14 +490,10 @@
             const onMove = (e) => {
                 if (!isDragging) return;
                 e.preventDefault(); 
-
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                const deltaX = clientX - startX;
-                const deltaY = clientY - startY;
-
-                el.style.left = `${initialLeft + deltaX}px`;
-                el.style.top = `${initialTop + deltaY}px`;
+                el.style.left = `${initialLeft + (clientX - startX)}px`;
+                el.style.top = `${initialTop + (clientY - startY)}px`;
             };
 
             const onEnd = () => {
@@ -493,7 +501,6 @@
                 isDragging = false;
                 el.classList.remove('dragging');
                 el.style.zIndex = 20;
-                document.body.style.overflow = '';
                 checkSnap(el);
             };
 
@@ -512,7 +519,6 @@
             const currentY = (el.offsetTop / containerH) * 100;
             const targetX = parseFloat(el.dataset.targetX);
             const targetY = parseFloat(el.dataset.targetY);
-            
             const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
             const threshold = window.innerWidth < 600 ? 12 : 8;
 
@@ -526,7 +532,6 @@
             el.style.top = `${y}%`;
             el.classList.add('locked');
             if (navigator.vibrate) navigator.vibrate(20);
-            
             lockedCount++;
             if (lockedCount === totalPieces) onWin();
         }
@@ -546,13 +551,9 @@
         function triggerConfetti() {
             var count = 200;
             var defaults = { origin: { y: 1 }, zIndex: 9999 };
-
             function fire(particleRatio, opts) {
-                confetti(Object.assign({}, defaults, opts, {
-                    particleCount: Math.floor(count * particleRatio)
-                }));
+                confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * particleRatio) }));
             }
-
             fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
             fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
             fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
