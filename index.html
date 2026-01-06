@@ -11,7 +11,7 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none;
+            touch-action: none; /* Empêche le scroll sur mobile pendant le jeu */
         }
 
         body {
@@ -23,7 +23,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start; /* Changé pour mieux gérer le haut sur mobile */
             height: 100vh;
             overflow: hidden;
             position: relative;
@@ -53,7 +53,8 @@
         /* --- UI ELEMENTS --- */
         #game-ui {
             text-align: center;
-            margin-bottom: 60px; 
+            margin-top: 40px; /* Espace fixe depuis le haut */
+            margin-bottom: 20px;
             z-index: 50; 
             pointer-events: none;
             width: 90%;
@@ -68,6 +69,7 @@
             opacity: 0.8;
             transition: opacity 0.5s ease;
             text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            line-height: 1.4;
         }
 
         .instruction-highlight {
@@ -79,13 +81,14 @@
         #puzzle-container {
             position: relative;
             z-index: 50; 
-            width: 90vw;
+            width: 90vw; /* Prend presque toute la largeur sur mobile */
             max-width: 600px;
             aspect-ratio: 4/3; 
             background-color: #ffffff; 
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: background-color 0.5s;
+            margin-bottom: 20px; /* Espace en bas */
         }
 
         /* Le guide (image de fond atténuée - SANS DATE) */
@@ -96,13 +99,13 @@
             width: 100%;
             height: 100%;
             background-size: 100% 100%;
-            opacity: 0.3; 
+            opacity: 0.25; /* Un peu plus clair pour mieux voir les pièces par dessus */
             border: 2px dashed #ccc;
             border-radius: 8px;
             z-index: 0;
         }
 
-        /* L'image de RÉVÉLATION (AVEC DATE) - Cachée au début */
+        /* L'image de RÉVÉLATION (AVEC DATE) */
         #final-reveal {
             position: absolute;
             top: 0;
@@ -111,7 +114,7 @@
             height: 100%;
             background-size: 100% 100%;
             opacity: 0;
-            z-index: 150; /* Au-dessus des pièces */
+            z-index: 150; 
             transition: opacity 1.5s ease-in-out;
             pointer-events: none;
             border-radius: 8px;
@@ -128,46 +131,41 @@
         }
 
         .piece.dragging {
-            z-index: 100;
+            z-index: 999; /* Très haut z-index pour ne jamais passer derrière */
             cursor: grabbing;
-            transform: scale(1.05);
+            transform: scale(1.1); /* Plus gros sur mobile pour voir sous le doigt */
             filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
         }
 
         .piece.locked {
             z-index: 40;
-            cursor: grab;
+            cursor: default;
             filter: none;
+            pointer-events: none; /* Une fois lockée, on ne la touche plus */
             transition: all 0.3s ease;
         }
 
         /* --- SUCCESS STATE --- */
         #success-message {
-            position: absolute;
-            bottom: -80px;
+            position: fixed; /* Fixe pour être sûr d'être visible */
+            bottom: -100px;
             left: 50%;
             transform: translateX(-50%);
             background: white;
-            padding: 15px 30px;
+            padding: 20px 30px;
             border-radius: 50px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             text-align: center;
             opacity: 0;
             transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            width: 90%;
+            width: 85%;
             max-width: 400px;
-            z-index: 200;
+            z-index: 1000;
         }
 
         #success-message.visible {
-            bottom: 20px;
+            bottom: 30px;
             opacity: 1;
-        }
-
-        @media (min-height: 800px) {
-             #success-message.visible {
-                bottom: 10%;
-             }
         }
 
         #success-message h2 {
@@ -182,14 +180,8 @@
             font-size: 0.95rem;
         }
 
-        /* Animation de fin */
         .puzzle-complete #final-reveal {
-            opacity: 1; /* Affiche l'image avec la date */
-        }
-
-        .puzzle-complete .piece {
-            /* Optionnel : cacher les pièces pour ne laisser que l'image finale */
-            /* opacity: 0; transition: opacity 1s; */
+            opacity: 1; 
         }
         
         .puzzle-complete #puzzle-guide {
@@ -215,7 +207,8 @@
 
     <div id="puzzle-container">
         <div id="puzzle-guide"></div>
-        <div id="final-reveal"></div> </div>
+        <div id="final-reveal"></div>
+    </div>
 
     <div id="success-message">
         <h2>Félicitations !</h2>
@@ -223,10 +216,9 @@
     </div>
 
     <script>
-        // CONFIGURATION
         const CONFIG = {
-            piecesSrc: 'guide.jpg',   // Image SANS date pour créer les pièces
-            finalSrc: 'puzzle.png',   // Image AVEC date pour la victoire
+            piecesSrc: 'guide.jpg',   
+            finalSrc: 'puzzle.png',   
             rows: 3,
             cols: 4,
             snapThreshold: 0.15,
@@ -239,7 +231,6 @@
         const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
 
-        // --- CHARGEMENT DU FOND (Paysage) ---
         const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
         const bgImgElement = document.getElementById('bg-img');
         
@@ -253,12 +244,10 @@
         }
         tryLoadBackground(0);
 
-        // --- LOGIQUE DU PUZZLE ---
         let pieces = [];
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
 
-        // Générateur de formes intelligent
         function generatePerfectShapes(rows, cols) {
             const shapes = [];
             for (let r = 0; r < rows; r++) {
@@ -274,20 +263,14 @@
             return shapes;
         }
 
-        // Chargement de l'image pour les pièces (guide.jpg)
         const imgPieces = new Image();
         imgPieces.src = CONFIG.piecesSrc;
         
         imgPieces.onload = () => {
             const ratio = imgPieces.width / imgPieces.height;
             container.style.aspectRatio = `${ratio}`;
-            
-            // Le guide visuel en fond (faible opacité) utilise aussi l'image sans date
             guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
-            
-            // On prépare l'image finale (avec date) pour la transition fluide
             finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
-
             initPuzzle();
         };
 
@@ -314,7 +297,6 @@
         function createCanvasPiece(row, col, w, h, tabSize, shape) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            
             const totalW = w + tabSize * 2;
             const totalH = h + tabSize * 2;
             
@@ -324,40 +306,28 @@
 
             ctx.save();
             ctx.beginPath();
-            
             const offsetX = tabSize;
             const offsetY = tabSize;
             let x = offsetX, y = offsetY;
             ctx.moveTo(x, y);
 
-            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y); // Haut
+            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y); 
             x += w;
-            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h); // Droite
+            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h); 
             y += h;
-            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y); // Bas
+            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y); 
             x -= w;
-            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h); // Gauche
+            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h); 
 
             ctx.closePath();
             ctx.clip();
-            
-            ctx.drawImage(imgPieces, 
-                col * w - offsetX, row * h - offsetY,
-                totalW, totalH,
-                0, 0, totalW, totalH
-            );
-            
-            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
+            ctx.drawImage(imgPieces, col * w - offsetX, row * h - offsetY, totalW, totalH, 0, 0, totalW, totalH);
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
 
             canvas.style.width = `${(totalW / (imgPieces.width)) * 100}%`;
             canvas.style.height = 'auto';
-            
             const pctPerPixelX = 100 / imgPieces.width;
             const pctPerPixelY = 100 / imgPieces.height;
             canvas.dataset.targetX = (col * w - tabSize) * pctPerPixelX;
@@ -384,36 +354,60 @@
             ctx.lineTo(x + dx, y + dy);
         }
 
+        // --- NOUVELLE FONCTION DE MÉLANGE INTELLIGENTE ---
         function scramblePieces() {
             const containerRect = container.getBoundingClientRect();
-            const winW = window.innerWidth, winH = window.innerHeight;
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            // On récupère la hauteur du titre pour ne pas mettre de pièces dessus
+            const headerHeight = document.getElementById('game-ui').offsetHeight + 40; 
+            
+            const isMobile = winW < 600;
+
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
-                const pW = piece.offsetWidth || 100, pH = piece.offsetHeight || 100;
                 
-                const side = Math.floor(Math.random() * 3); 
+                const pW = piece.offsetWidth || 100;
+                const pH = piece.offsetHeight || 100;
+                
                 let minX, maxX, minY, maxY;
 
-                if (side === 0) { // Gauche
-                    minX = 10; maxX = containerRect.left - pW - 10;
-                    minY = 10; maxY = winH - pH - 10;
-                } else if (side === 1) { // Droite
-                    minX = containerRect.right + 10; maxX = winW - pW - 10;
-                    minY = 10; maxY = winH - pH - 10;
-                } else { // Bas
-                    minX = 10; maxX = winW - pW - 10;
-                    minY = containerRect.bottom + 10; maxY = winH - pH - 10;
+                if (isMobile) {
+                    // SUR MOBILE : On utilise tout l'écran SAUF le titre en haut
+                    minX = 10;
+                    maxX = winW - pW - 10;
+                    minY = headerHeight; // Jamais plus haut que le titre
+                    maxY = winH - pH - 10;
+
+                    // Petite optimisation : essayer de mettre plus de pièces en BAS si possible
+                    if ((winH - containerRect.bottom) > 150) {
+                        // S'il y a de la place en bas, on favorise cette zone (50% de chance)
+                        if (Math.random() > 0.5) {
+                            minY = containerRect.bottom;
+                        }
+                    }
+                } else {
+                    // SUR DESKTOP : Logique classique (gauche/droite/bas)
+                    const side = Math.floor(Math.random() * 3);
+                    if (side === 0) { // Gauche
+                        minX = 10; maxX = containerRect.left - pW - 10;
+                        minY = headerHeight; maxY = winH - pH - 10;
+                    } else if (side === 1) { // Droite
+                        minX = containerRect.right + 10; maxX = winW - pW - 10;
+                        minY = headerHeight; maxY = winH - pH - 10;
+                    } else { // Bas
+                        minX = 10; maxX = winW - pW - 10;
+                        minY = containerRect.bottom + 10; maxY = winH - pH - 10;
+                    }
+                    // Fallback desktop
+                    if (maxX < minX) { minX = 10; maxX = winW - pW - 10; }
                 }
                 
-                // Fallback si l'espace est trop petit (écran mobile par ex)
-                if (maxX < minX || maxY < minY) { minX=10; maxX=winW-pW; minY=10; maxY=winH-pH; }
-
-                // 1. Calcul de la position ABSOLUE sur l'écran
+                // Calcul de position aléatoire
                 const pageX = minX + Math.random() * (maxX - minX);
                 const pageY = minY + Math.random() * (maxY - minY);
 
-                // 2. Conversion en position RELATIVE au conteneur (CORRECTION ICI)
-                // Comme les pièces sont dans #puzzle-container, le (0,0) est le coin haut-gauche du puzzle, pas de l'écran.
+                // Conversion importante vers le système de coordonnées du conteneur
                 piece.style.left = `${pageX - containerRect.left}px`;
                 piece.style.top = `${pageY - containerRect.top}px`;
             });
@@ -421,6 +415,7 @@
 
         function addDragListeners(el) {
             let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
+            
             const onStart = (e) => {
                 if (el.classList.contains('locked')) return; 
                 isDragging = true;
@@ -429,35 +424,45 @@
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
                 startX = clientX; startY = clientY;
                 initialLeft = el.offsetLeft; initialTop = el.offsetTop;
-                el.style.zIndex = 100;
             };
+            
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault();
+                e.preventDefault(); // Empêche le scroll page sur mobile
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
                 el.style.left = `${initialLeft + (clientX - startX)}px`;
                 el.style.top = `${initialTop + (clientY - startY)}px`;
             };
+            
             const onEnd = () => {
                 if (!isDragging) return;
                 isDragging = false;
                 el.classList.remove('dragging');
-                el.style.zIndex = 20;
                 checkSnap(el);
             };
+
             el.addEventListener('mousedown', onStart); el.addEventListener('touchstart', onStart, {passive:false});
             window.addEventListener('mousemove', onMove); window.addEventListener('touchmove', onMove, {passive:false});
             window.addEventListener('mouseup', onEnd); window.addEventListener('touchend', onEnd);
         }
 
         function checkSnap(el) {
-            const containerW = container.offsetWidth, containerH = container.offsetHeight;
+            const containerW = container.offsetWidth;
+            const containerH = container.offsetHeight;
             const currentX = (el.offsetLeft / containerW) * 100;
             const currentY = (el.offsetTop / containerH) * 100;
-            const targetX = parseFloat(el.dataset.targetX), targetY = parseFloat(el.dataset.targetY);
+            const targetX = parseFloat(el.dataset.targetX);
+            const targetY = parseFloat(el.dataset.targetY);
             const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
-            if (dist < (window.innerWidth < 600 ? 15 : 8)) snapPiece(el, targetX, targetY);
+            
+            // Seuil augmenté sur mobile (20) pour faciliter le jeu au doigt
+            const isMobile = window.innerWidth < 600;
+            const threshold = isMobile ? 20 : 8;
+
+            if (dist < threshold) {
+                snapPiece(el, targetX, targetY);
+            }
         }
 
         function snapPiece(el, x, y) {
