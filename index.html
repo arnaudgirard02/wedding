@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Save the Date - Puzzle</title>
-    <!-- Import de la librairie Canvas Confetti pour un effet pro -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         /* --- RESET & BASE --- */
@@ -39,13 +38,11 @@
             height: auto; 
             z-index: 0;   
             pointer-events: none;
-            
             display: flex;
             align-items: flex-end; 
             justify-content: center;
         }
 
-        /* L'IMAGE ELLE-MÊME */
         #bg-img {
             display: block;
             width: 100%;
@@ -91,7 +88,7 @@
             transition: background-color 0.5s;
         }
 
-        /* Le guide (image de fond atténuée) */
+        /* Le guide (image de fond atténuée - SANS DATE) */
         #puzzle-guide {
             position: absolute;
             top: 0;
@@ -103,6 +100,21 @@
             border: 2px dashed #ccc;
             border-radius: 8px;
             z-index: 0;
+        }
+
+        /* L'image de RÉVÉLATION (AVEC DATE) - Cachée au début */
+        #final-reveal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: 100% 100%;
+            opacity: 0;
+            z-index: 150; /* Au-dessus des pièces */
+            transition: opacity 1.5s ease-in-out;
+            pointer-events: none;
+            border-radius: 8px;
         }
 
         /* --- PIECES --- */
@@ -171,8 +183,13 @@
         }
 
         /* Animation de fin */
+        .puzzle-complete #final-reveal {
+            opacity: 1; /* Affiche l'image avec la date */
+        }
+
         .puzzle-complete .piece {
-            filter: none !important;
+            /* Optionnel : cacher les pièces pour ne laisser que l'image finale */
+            /* opacity: 0; transition: opacity 1s; */
         }
         
         .puzzle-complete #puzzle-guide {
@@ -188,7 +205,6 @@
 </head>
 <body>
 
-    <!-- Structure HTML pour le fond -->
     <div id="background-container">
         <img id="bg-img" src="" alt="">
     </div>
@@ -199,8 +215,7 @@
 
     <div id="puzzle-container">
         <div id="puzzle-guide"></div>
-        <!-- Les pièces (Canvas) seront générées ici -->
-    </div>
+        <div id="final-reveal"></div> </div>
 
     <div id="success-message">
         <h2>Félicitations !</h2>
@@ -210,8 +225,8 @@
     <script>
         // CONFIGURATION
         const CONFIG = {
-            imageSrc: 'puzzle.png', 
-            guideSrc: 'guide.jpg', 
+            piecesSrc: 'guide.jpg',   // Image SANS date pour créer les pièces
+            finalSrc: 'puzzle.png',   // Image AVEC date pour la victoire
             rows: 3,
             cols: 4,
             snapThreshold: 0.15,
@@ -220,94 +235,79 @@
 
         const container = document.getElementById('puzzle-container');
         const guide = document.getElementById('puzzle-guide');
+        const finalReveal = document.getElementById('final-reveal');
         const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
 
-        // --- SCRIPT INTELLIGENT DE CHARGEMENT DU FOND ---
-        const possibleBackgrounds = [
-            'bg.jpg', 
-            'bg.jpeg', 
-            'bg.png', 
-            'background.jpg', 
-            'background.jpeg', 
-            'background.png',
-            'Background.jpg' 
-        ];
-        
+        // --- CHARGEMENT DU FOND (Paysage) ---
+        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
         const bgImgElement = document.getElementById('bg-img');
         
         function tryLoadBackground(index) {
-            if (index >= possibleBackgrounds.length) {
-                console.warn("Aucun fond trouvé. Vérifiez que le fichier est bien présent.");
-                return;
-            }
-            
+            if (index >= possibleBackgrounds.length) return;
             const currentName = possibleBackgrounds[index];
             const tester = new Image();
-            
-            tester.onload = function() {
-                bgImgElement.src = currentName;
-            };
-            
-            tester.onerror = function() {
-                tryLoadBackground(index + 1);
-            };
-            
+            tester.onload = () => { bgImgElement.src = currentName; };
+            tester.onerror = () => { tryLoadBackground(index + 1); };
             tester.src = currentName;
         }
-        
         tryLoadBackground(0);
-
 
         // --- LOGIQUE DU PUZZLE ---
         let pieces = [];
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
 
-        const JIGSAW_SHAPES = [
-            [0, 1, 1, 0],   // R0 C0
-            [0, -1, -1, -1], // R0 C1
-            [0, 0, 1, 1],   // R0 C2
-            [-1, -1, 0, 0], // R1 C0
-            [1, -1, 0, 1],  // R1 C1
-            [-1, 0, 0, 1]   // R1 C2
-        ];
+        // Générateur de formes intelligent
+        function generatePerfectShapes(rows, cols) {
+            const shapes = [];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let top = 0, right = 0, bottom = 0, left = 0;
+                    if (r > 0) top = -shapes[(r - 1) * cols + c][2];
+                    if (c < cols - 1) right = Math.random() > 0.5 ? 1 : -1;
+                    if (r < rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
+                    if (c > 0) left = -shapes[r * cols + (c - 1)][1];
+                    shapes.push([top, right, bottom, left]);
+                }
+            }
+            return shapes;
+        }
 
-        const img = new Image();
-        img.src = CONFIG.imageSrc;
+        // Chargement de l'image pour les pièces (guide.jpg)
+        const imgPieces = new Image();
+        imgPieces.src = CONFIG.piecesSrc;
         
-        img.onload = () => {
-            const ratio = img.width / img.height;
+        imgPieces.onload = () => {
+            const ratio = imgPieces.width / imgPieces.height;
             container.style.aspectRatio = `${ratio}`;
             
-            guide.style.backgroundImage = `url('${CONFIG.guideSrc}')`;
+            // Le guide visuel en fond (faible opacité) utilise aussi l'image sans date
+            guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
             
-            const guideTester = new Image();
-            guideTester.src = CONFIG.guideSrc;
-            guideTester.onerror = () => {
-                console.warn("Guide spécifique non trouvé, utilisation de l'image du puzzle.");
-                guide.style.backgroundImage = `url('${CONFIG.imageSrc}')`;
-            };
+            // On prépare l'image finale (avec date) pour la transition fluide
+            finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
 
             initPuzzle();
         };
 
-        img.onerror = () => {
-            alert("⚠️ Erreur Critique : L'image 'puzzle.png' n'a pas été trouvée.");
+        imgPieces.onerror = () => {
+            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
         };
 
         function initPuzzle() {
-            const basePieceW = img.width / CONFIG.cols;
-            const basePieceH = img.height / CONFIG.rows;
+            const basePieceW = imgPieces.width / CONFIG.cols;
+            const basePieceH = imgPieces.height / CONFIG.rows;
             const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
+
+            const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
 
             for (let r = 0; r < CONFIG.rows; r++) {
                 for (let c = 0; c < CONFIG.cols; c++) {
                     const shapeIndex = r * CONFIG.cols + c;
-                    createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, JIGSAW_SHAPES[shapeIndex]);
+                    createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, generatedShapes[shapeIndex]);
                 }
             }
-
             scramblePieces();
         }
 
@@ -327,34 +327,21 @@
             
             const offsetX = tabSize;
             const offsetY = tabSize;
-            
-            let x = offsetX;
-            let y = offsetY;
+            let x = offsetX, y = offsetY;
             ctx.moveTo(x, y);
 
-            // Haut
-            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize);
-            else ctx.lineTo(x + w, y);
-
-            // Droite
+            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y); // Haut
             x += w;
-            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize);
-            else ctx.lineTo(x, y + h);
-
-            // Bas
+            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h); // Droite
             y += h;
-            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize);
-            else ctx.lineTo(x - w, y);
-
-            // Gauche
+            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y); // Bas
             x -= w;
-            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize);
-            else ctx.lineTo(x, y - h);
+            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h); // Gauche
 
             ctx.closePath();
             ctx.clip();
             
-            ctx.drawImage(img, 
+            ctx.drawImage(imgPieces, 
                 col * w - offsetX, row * h - offsetY,
                 totalW, totalH,
                 0, 0, totalW, totalH
@@ -363,23 +350,16 @@
             ctx.strokeStyle = 'rgba(255,255,255,0.4)';
             ctx.lineWidth = 2;
             ctx.stroke();
-            
             ctx.strokeStyle = 'rgba(0,0,0,0.1)';
             ctx.lineWidth = 1;
             ctx.stroke();
-
             ctx.restore();
 
-            // Styling responsive
-            const sizeFactorW = totalW / w;
-            const sizeFactorH = totalH / h;
-            
-            canvas.style.width = `${(totalW / (img.width)) * 100}%`;
+            canvas.style.width = `${(totalW / (imgPieces.width)) * 100}%`;
             canvas.style.height = 'auto';
             
-            const pctPerPixelX = 100 / img.width;
-            const pctPerPixelY = 100 / img.height;
-            
+            const pctPerPixelX = 100 / imgPieces.width;
+            const pctPerPixelY = 100 / imgPieces.height;
             canvas.dataset.targetX = (col * w - tabSize) * pctPerPixelX;
             canvas.dataset.targetY = (row * h - tabSize) * pctPerPixelY;
 
@@ -389,174 +369,95 @@
         }
 
         function drawTab(ctx, x, y, dx, dy, size) {
-            const l = Math.sqrt(dx*dx + dy*dy);
-            const neck = l * 0.35;
-            
-            const ux = dx / l;
-            const uy = dy / l;
-            const nx = -uy; 
-            const ny = ux;
-
-            const x1 = x + ux * (l - neck)/2;
-            const y1 = y + uy * (l - neck)/2;
-            
-            const x2 = x + ux * (l + neck)/2;
-            const y2 = y + uy * (l + neck)/2;
-
+            const l = Math.sqrt(dx*dx + dy*dy), neck = l * 0.35;
+            const ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
+            const x1 = x + ux * (l - neck)/2, y1 = y + uy * (l - neck)/2;
+            const x2 = x + ux * (l + neck)/2, y2 = y + uy * (l + neck)/2;
             ctx.lineTo(x1, y1);
-
-            const h = Math.abs(size);
-            const sign = size > 0 ? 1 : -1;
-            
-            const cx1 = x1 + nx * sign * h * 0.2;
-            const cy1 = y1 + ny * sign * h * 0.2;
-            
-            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h;
-            const ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
-            
-            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h;
-            const ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
-            
-            const cx2 = x2 + nx * sign * h * 0.2;
-            const cy2 = y2 + ny * sign * h * 0.2;
-
+            const h = Math.abs(size), sign = size > 0 ? 1 : -1;
+            const cx1 = x1 + nx * sign * h * 0.2, cy1 = y1 + ny * sign * h * 0.2;
+            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h, ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
+            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h, ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
+            const cx2 = x2 + nx * sign * h * 0.2, cy2 = y2 + ny * sign * h * 0.2;
             ctx.bezierCurveTo(cx1, cy1, tx1, ty1, x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h);
             ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
-            
             ctx.lineTo(x + dx, y + dy);
         }
 
         function scramblePieces() {
             const containerRect = container.getBoundingClientRect();
-            const winW = window.innerWidth;
-            const winH = window.innerHeight;
-
+            const winW = window.innerWidth, winH = window.innerHeight;
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
+                const pW = piece.offsetWidth || 100, pH = piece.offsetHeight || 100;
                 
-                const pW = piece.offsetWidth || 100;
-                const pH = piece.offsetHeight || 100;
+                const side = Math.floor(Math.random() * 3); 
+                let minX, maxX, minY, maxY;
 
-                const zones = [];
-
-                if (containerRect.left > pW * 0.5) {
-                    zones.push({
-                        minX: 10, 
-                        maxX: containerRect.left - pW * 0.5,
-                        minY: containerRect.top, 
-                        maxY: containerRect.bottom - pH
-                    });
+                if (side === 0) { // Gauche
+                    minX = 10; maxX = containerRect.left - pW - 10;
+                    minY = 10; maxY = winH - pH - 10;
+                } else if (side === 1) { // Droite
+                    minX = containerRect.right + 10; maxX = winW - pW - 10;
+                    minY = 10; maxY = winH - pH - 10;
+                } else { // Bas
+                    minX = 10; maxX = winW - pW - 10;
+                    minY = containerRect.bottom + 10; maxY = winH - pH - 10;
                 }
-
-                if ((winW - containerRect.right) > pW * 0.5) {
-                    zones.push({
-                        minX: containerRect.right + pW * 0.2, 
-                        maxX: winW - pW - 10,
-                        minY: containerRect.top, 
-                        maxY: containerRect.bottom - pH
-                    });
-                }
-
-                const bottomSpace = winH - containerRect.bottom;
-                zones.push({
-                    minX: 10,
-                    maxX: winW - pW - 10,
-                    minY: containerRect.bottom + 10,
-                    maxY: winH - pH - 10
-                });
-
-                const zone = zones[Math.floor(Math.random() * zones.length)];
-
-                const safeMaxX = Math.max(zone.minX, zone.maxX);
-                const safeMaxY = Math.max(zone.minY, zone.maxY);
                 
-                const pageX = zone.minX + Math.random() * (safeMaxX - zone.minX);
-                const pageY = zone.minY + Math.random() * (safeMaxY - zone.minY);
+                // Fallback si l'espace est trop petit (écran mobile par ex)
+                if (maxX < minX || maxY < minY) { minX=10; maxX=winW-pW; minY=10; maxY=winH-pH; }
 
-                const relativeX = pageX - containerRect.left;
-                const relativeY = pageY - containerRect.top;
+                // 1. Calcul de la position ABSOLUE sur l'écran
+                const pageX = minX + Math.random() * (maxX - minX);
+                const pageY = minY + Math.random() * (maxY - minY);
 
-                piece.style.left = `${relativeX}px`;
-                piece.style.top = `${relativeY}px`;
+                // 2. Conversion en position RELATIVE au conteneur (CORRECTION ICI)
+                // Comme les pièces sont dans #puzzle-container, le (0,0) est le coin haut-gauche du puzzle, pas de l'écran.
+                piece.style.left = `${pageX - containerRect.left}px`;
+                piece.style.top = `${pageY - containerRect.top}px`;
             });
         }
 
         function addDragListeners(el) {
-            let startX = 0, startY = 0;
-            let initialLeft = 0, initialTop = 0;
-            let isDragging = false;
-
+            let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
             const onStart = (e) => {
-                if (el.classList.contains('locked')) {
-                    el.classList.remove('locked');
-                    lockedCount--;
-                    if (container.classList.contains('puzzle-complete')) {
-                        container.classList.remove('puzzle-complete');
-                        successMsg.classList.remove('visible');
-                        instructionText.style.display = 'block';
-                        requestAnimationFrame(() => instructionText.style.opacity = '0.8');
-                    }
-                }
-                
+                if (el.classList.contains('locked')) return; 
                 isDragging = true;
                 el.classList.add('dragging');
-
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-
-                startX = clientX;
-                startY = clientY;
-                initialLeft = el.offsetLeft;
-                initialTop = el.offsetTop;
+                startX = clientX; startY = clientY;
+                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
                 el.style.zIndex = 100;
             };
-
             const onMove = (e) => {
                 if (!isDragging) return;
                 e.preventDefault();
-
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-
-                const deltaX = clientX - startX;
-                const deltaY = clientY - startY;
-
-                el.style.left = `${initialLeft + deltaX}px`;
-                el.style.top = `${initialTop + deltaY}px`;
+                el.style.left = `${initialLeft + (clientX - startX)}px`;
+                el.style.top = `${initialTop + (clientY - startY)}px`;
             };
-
             const onEnd = () => {
                 if (!isDragging) return;
                 isDragging = false;
                 el.classList.remove('dragging');
-                el.style.zIndex = 20; // Retour au z-index par défaut pour les pièces
+                el.style.zIndex = 20;
                 checkSnap(el);
             };
-
-            el.addEventListener('mousedown', onStart);
-            el.addEventListener('touchstart', onStart, { passive: false });
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('touchmove', onMove, { passive: false });
-            window.addEventListener('mouseup', onEnd);
-            window.addEventListener('touchend', onEnd);
+            el.addEventListener('mousedown', onStart); el.addEventListener('touchstart', onStart, {passive:false});
+            window.addEventListener('mousemove', onMove); window.addEventListener('touchmove', onMove, {passive:false});
+            window.addEventListener('mouseup', onEnd); window.addEventListener('touchend', onEnd);
         }
 
         function checkSnap(el) {
-            const containerW = container.offsetWidth;
-            const containerH = container.offsetHeight;
-
+            const containerW = container.offsetWidth, containerH = container.offsetHeight;
             const currentX = (el.offsetLeft / containerW) * 100;
             const currentY = (el.offsetTop / containerH) * 100;
-
-            const targetX = parseFloat(el.dataset.targetX);
-            const targetY = parseFloat(el.dataset.targetY);
-
+            const targetX = parseFloat(el.dataset.targetX), targetY = parseFloat(el.dataset.targetY);
             const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
-            const threshold = window.innerWidth < 600 ? 15 : 8;
-
-            if (dist < threshold) {
-                snapPiece(el, targetX, targetY);
-            }
+            if (dist < (window.innerWidth < 600 ? 15 : 8)) snapPiece(el, targetX, targetY);
         }
 
         function snapPiece(el, x, y) {
@@ -571,56 +472,21 @@
             container.classList.add('puzzle-complete');
             instructionText.style.opacity = '0';
             setTimeout(() => {
-                if(lockedCount === totalPieces) {
-                    instructionText.style.display = 'none';
-                    successMsg.classList.add('visible');
-                    triggerConfetti();
-                }
+                instructionText.style.display = 'none';
+                successMsg.classList.add('visible');
+                triggerConfetti();
             }, 500);
         }
 
-        // --- NOUVEAU FEU D'ARTIFICE (canvas-confetti) ---
         function triggerConfetti() {
             var count = 200;
-            var defaults = {
-                origin: { y: 1 }, // Part du bas
-                zIndex: 9999
-            };
-
-            function fire(particleRatio, opts) {
-                confetti(Object.assign({}, defaults, opts, {
-                    particleCount: Math.floor(count * particleRatio)
-                }));
-            }
-
-            // Explosion en plusieurs salves pour un effet réaliste
-            fire(0.25, {
-                spread: 26,
-                startVelocity: 55,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
-            fire(0.2, {
-                spread: 60,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
-            fire(0.35, {
-                spread: 100,
-                decay: 0.91,
-                scalar: 0.8,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
-            fire(0.1, {
-                spread: 120,
-                startVelocity: 25,
-                decay: 0.92,
-                scalar: 1.2,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
-            fire(0.1, {
-                spread: 120,
-                startVelocity: 45,
-                colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
-            });
+            var defaults = { origin: { y: 1 }, zIndex: 9999 };
+            function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
+            fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.1, { spread: 120, startVelocity: 45, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
         }
     </script>
 </body>
