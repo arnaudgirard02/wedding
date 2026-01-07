@@ -11,7 +11,7 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* Empêche le scroll sur mobile pendant le jeu */
+            touch-action: none;
         }
 
         body {
@@ -23,7 +23,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start; /* Changé pour mieux gérer le haut sur mobile */
+            justify-content: flex-start;
             height: 100vh;
             overflow: hidden;
             position: relative;
@@ -53,7 +53,7 @@
         /* --- UI ELEMENTS --- */
         #game-ui {
             text-align: center;
-            margin-top: 40px; /* Espace fixe depuis le haut */
+            margin-top: 40px; 
             margin-bottom: 20px;
             z-index: 50; 
             pointer-events: none;
@@ -81,17 +81,16 @@
         #puzzle-container {
             position: relative;
             z-index: 50; 
-            width: 90vw; /* Prend presque toute la largeur sur mobile */
+            width: 90vw; 
             max-width: 600px;
             aspect-ratio: 4/3; 
             background-color: #ffffff; 
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: background-color 0.5s;
-            margin-bottom: 20px; /* Espace en bas */
+            margin-bottom: 20px; 
         }
 
-        /* Le guide (image de fond atténuée - SANS DATE) */
         #puzzle-guide {
             position: absolute;
             top: 0;
@@ -99,13 +98,12 @@
             width: 100%;
             height: 100%;
             background-size: 100% 100%;
-            opacity: 0.25; /* Un peu plus clair pour mieux voir les pièces par dessus */
+            opacity: 0.25; 
             border: 2px dashed #ccc;
             border-radius: 8px;
             z-index: 0;
         }
 
-        /* L'image de RÉVÉLATION (AVEC DATE) */
         #final-reveal {
             position: absolute;
             top: 0;
@@ -128,12 +126,14 @@
             filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
             transition: transform 0.1s;
             touch-action: none;
+            /* Important pour éviter les micro-lignes blanches sur certains écrans */
+            transform-origin: center center;
         }
 
         .piece.dragging {
-            z-index: 999; /* Très haut z-index pour ne jamais passer derrière */
+            z-index: 999; 
             cursor: grabbing;
-            transform: scale(1.1); /* Plus gros sur mobile pour voir sous le doigt */
+            transform: scale(1.1); 
             filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
         }
 
@@ -141,13 +141,13 @@
             z-index: 40;
             cursor: default;
             filter: none;
-            pointer-events: none; /* Une fois lockée, on ne la touche plus */
+            pointer-events: none; 
             transition: all 0.3s ease;
         }
 
         /* --- SUCCESS STATE --- */
         #success-message {
-            position: fixed; /* Fixe pour être sûr d'être visible */
+            position: fixed; 
             bottom: -100px;
             left: 50%;
             transform: translateX(-50%);
@@ -297,17 +297,26 @@
         function createCanvasPiece(row, col, w, h, tabSize, shape) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
+            
+            // --- CORRECTION CLIPPING ---
+            // On calcule la taille totale théorique
             const totalW = w + tabSize * 2;
             const totalH = h + tabSize * 2;
             
-            canvas.width = totalW;
-            canvas.height = totalH;
+            // IMPORTANT : On arrondit à l'entier SUPÉRIEUR (ceil) pour le canvas
+            // Sinon les pixels fractionnaires sont coupés et créent des trous
+            canvas.width = Math.ceil(totalW);
+            canvas.height = Math.ceil(totalH);
+            
             canvas.classList.add('piece');
 
             ctx.save();
             ctx.beginPath();
+            
             const offsetX = tabSize;
             const offsetY = tabSize;
+            
+            // On dessine avec les valeurs flottantes précises (w, h)
             let x = offsetX, y = offsetY;
             ctx.moveTo(x, y);
 
@@ -321,13 +330,22 @@
 
             ctx.closePath();
             ctx.clip();
-            ctx.drawImage(imgPieces, col * w - offsetX, row * h - offsetY, totalW, totalH, 0, 0, totalW, totalH);
+            
+            ctx.drawImage(imgPieces, 
+                col * w - offsetX, row * h - offsetY,
+                totalW, totalH, // On demande la taille totale
+                0, 0, totalW, totalH // On dessine sur toute la surface
+            );
+            
             ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
             ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
 
-            canvas.style.width = `${(totalW / (imgPieces.width)) * 100}%`;
-            canvas.style.height = 'auto';
+            // Style Responsive : on utilise les pourcentages basés sur l'image d'origine
+            // Cela garantit que visuellement, tout s'aligne parfaitement
+            canvas.style.width = `${(totalW / imgPieces.width) * 100}%`;
+            canvas.style.height = 'auto'; // Garde le ratio
+            
             const pctPerPixelX = 100 / imgPieces.width;
             const pctPerPixelY = 100 / imgPieces.height;
             canvas.dataset.targetX = (col * w - tabSize) * pctPerPixelX;
@@ -354,14 +372,11 @@
             ctx.lineTo(x + dx, y + dy);
         }
 
-        // --- NOUVELLE FONCTION DE MÉLANGE INTELLIGENTE ---
         function scramblePieces() {
             const containerRect = container.getBoundingClientRect();
             const winW = window.innerWidth;
             const winH = window.innerHeight;
-            // On récupère la hauteur du titre pour ne pas mettre de pièces dessus
             const headerHeight = document.getElementById('game-ui').offsetHeight + 40; 
-            
             const isMobile = winW < 600;
 
             pieces.forEach(piece => {
@@ -373,21 +388,14 @@
                 let minX, maxX, minY, maxY;
 
                 if (isMobile) {
-                    // SUR MOBILE : On utilise tout l'écran SAUF le titre en haut
                     minX = 10;
                     maxX = winW - pW - 10;
-                    minY = headerHeight; // Jamais plus haut que le titre
+                    minY = headerHeight; 
                     maxY = winH - pH - 10;
-
-                    // Petite optimisation : essayer de mettre plus de pièces en BAS si possible
                     if ((winH - containerRect.bottom) > 150) {
-                        // S'il y a de la place en bas, on favorise cette zone (50% de chance)
-                        if (Math.random() > 0.5) {
-                            minY = containerRect.bottom;
-                        }
+                        if (Math.random() > 0.5) minY = containerRect.bottom;
                     }
                 } else {
-                    // SUR DESKTOP : Logique classique (gauche/droite/bas)
                     const side = Math.floor(Math.random() * 3);
                     if (side === 0) { // Gauche
                         minX = 10; maxX = containerRect.left - pW - 10;
@@ -399,15 +407,12 @@
                         minX = 10; maxX = winW - pW - 10;
                         minY = containerRect.bottom + 10; maxY = winH - pH - 10;
                     }
-                    // Fallback desktop
                     if (maxX < minX) { minX = 10; maxX = winW - pW - 10; }
                 }
                 
-                // Calcul de position aléatoire
                 const pageX = minX + Math.random() * (maxX - minX);
                 const pageY = minY + Math.random() * (maxY - minY);
 
-                // Conversion importante vers le système de coordonnées du conteneur
                 piece.style.left = `${pageX - containerRect.left}px`;
                 piece.style.top = `${pageY - containerRect.top}px`;
             });
@@ -428,7 +433,7 @@
             
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault(); // Empêche le scroll page sur mobile
+                e.preventDefault(); 
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
                 el.style.left = `${initialLeft + (clientX - startX)}px`;
@@ -456,7 +461,6 @@
             const targetY = parseFloat(el.dataset.targetY);
             const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
             
-            // Seuil augmenté sur mobile (20) pour faciliter le jeu au doigt
             const isMobile = window.innerWidth < 600;
             const threshold = isMobile ? 20 : 8;
 
