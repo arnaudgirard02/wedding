@@ -6,12 +6,12 @@
     <title>Save the Date - Puzzle</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        /* --- RESET & BASE --- */
+        /* --- 1. BASE & RESET --- */
         * {
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none;
+            touch-action: none; /* Empêche le scroll quand on touche le jeu */
         }
 
         body {
@@ -23,13 +23,13 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
+            justify-content: flex-start; /* On aligne en haut pour gérer les petits écrans */
             height: 100vh;
             overflow: hidden;
             position: relative;
         }
 
-        /* --- ARRIÈRE-PLAN --- */
+        /* --- 2. DÉCOR (FOND) --- */
         #background-container {
             position: fixed;
             bottom: 0;
@@ -46,30 +46,32 @@
         #bg-img {
             display: block;
             width: 100%;
-            height: auto; 
+            height: auto;
+            max-height: 40vh; /* Empêche le décor de manger tout l'écran */ 
+            object-fit: contain;
             opacity: 1; 
         }
 
-        /* --- UI ELEMENTS --- */
+        /* --- 3. INTERFACE --- */
         #game-ui {
             text-align: center;
-            margin-top: 40px; 
+            margin-top: 20px; 
             margin-bottom: 20px;
             z-index: 50; 
             pointer-events: none;
             width: 90%;
             max-width: 600px;
             position: relative;
+            flex-shrink: 0; /* Empêche le titre de s'écraser */
         }
 
         h1 {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 400;
             margin: 0;
-            opacity: 0.8;
-            transition: opacity 0.5s ease;
-            text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            color: #444;
             line-height: 1.4;
+            transition: opacity 0.5s;
         }
 
         .instruction-highlight {
@@ -77,64 +79,81 @@
             color: #dfa668;
         }
 
-        /* --- PUZZLE CONTAINER --- */
-        #puzzle-container {
-            position: relative;
-            z-index: 50; 
-            width: 90vw; 
-            max-width: 600px;
-            aspect-ratio: 4/3; 
-            background-color: #ffffff; 
-            border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: background-color 0.5s;
-            margin-bottom: 20px; 
+        /* --- 4. CONTENEUR PUZZLE (Le coeur du problème) --- */
+        #puzzle-wrapper {
+            /* Wrapper flexible pour centrer le puzzle dans l'espace restant */
+            flex-grow: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            width: 100%;
+            padding-bottom: 20px;
+            z-index: 50;
         }
 
+        #puzzle-container {
+            position: relative;
+            /* La taille et le ratio seront définis par JS */
+            width: 90vw; 
+            max-width: 600px;
+            /* Limite la hauteur pour ne pas sortir de l'écran sur mobile */
+            max-height: 65vh; 
+            background-color: transparent; 
+            border-radius: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            transition: background-color 0.5s;
+        }
+
+        /* L'image fantôme (Guide) */
         #puzzle-guide {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-size: 100% 100%;
-            opacity: 0.25; 
-            border: 2px dashed #ccc;
-            border-radius: 8px;
+            background-size: cover; /* S'adapte parfaitement au conteneur */
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.2; 
             z-index: 0;
+            pointer-events: none;
         }
 
+        /* L'image finale (Victoire) */
         #final-reveal {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-size: 100% 100%;
+            background-size: cover;
+            background-position: center;
             opacity: 0;
             z-index: 150; 
             transition: opacity 1.5s ease-in-out;
             pointer-events: none;
-            border-radius: 8px;
+            border-radius: 4px;
         }
 
-        /* --- PIECES --- */
+        /* --- 5. PIÈCES --- */
         .piece {
             position: absolute;
             cursor: grab;
             z-index: 60;
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+            /* Ombre légère pour performance */
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));
             transition: transform 0.1s;
             touch-action: none;
-            /* Important pour éviter les micro-lignes blanches sur certains écrans */
             transform-origin: center center;
+            /* Rendu net sur iPhone */
+            -webkit-font-smoothing: antialiased;
         }
 
         .piece.dragging {
             z-index: 999; 
             cursor: grabbing;
             transform: scale(1.1); 
-            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
+            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.3));
         }
 
         .piece.locked {
@@ -142,44 +161,47 @@
             cursor: default;
             filter: none;
             pointer-events: none; 
-            transition: all 0.3s ease;
+            transition: left 0.2s, top 0.2s; /* Petit effet smooth quand ça snap */
         }
 
-        /* --- SUCCESS STATE --- */
+        /* --- 6. MESSAGE DE VICTOIRE --- */
         #success-message {
             position: fixed; 
-            bottom: -100px;
+            bottom: -200px;
             left: 50%;
             transform: translateX(-50%);
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
             padding: 20px 30px;
-            border-radius: 50px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            border-radius: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
             text-align: center;
             opacity: 0;
             transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             width: 85%;
-            max-width: 400px;
+            max-width: 350px;
             z-index: 1000;
         }
 
         #success-message.visible {
-            bottom: 30px;
+            bottom: 40px;
             opacity: 1;
         }
 
         #success-message h2 {
-            margin: 0 0 5px 0;
+            margin: 0 0 8px 0;
             color: #2c3e50;
-            font-size: 1.4rem;
+            font-size: 1.3rem;
         }
 
         #success-message p {
             margin: 0;
             color: #7f8c8d;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
+            line-height: 1.4;
         }
 
+        /* État final */
         .puzzle-complete #final-reveal {
             opacity: 1; 
         }
@@ -187,12 +209,6 @@
         .puzzle-complete #puzzle-guide {
             opacity: 0;
         }
-        
-        .puzzle-complete#puzzle-container {
-            background-color: transparent;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
-        }
-
     </style>
 </head>
 <body>
@@ -205,241 +221,261 @@
         <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
     </div>
 
-    <div id="puzzle-container">
-        <div id="puzzle-guide"></div>
-        <div id="final-reveal"></div>
+    <div id="puzzle-wrapper">
+        <div id="puzzle-container">
+            <div id="puzzle-guide"></div>
+            <div id="final-reveal"></div>
+        </div>
     </div>
 
     <div id="success-message">
         <h2>Félicitations !</h2>
-        <p> Vous avez maintenant la date du mariage ! Hâte de vous y voir 🥰</p>
+        <p>Vous avez découvert la date !<br>Hâte de vous y voir 🥰</p>
     </div>
 
     <script>
+        // --- CONFIGURATION ---
         const CONFIG = {
-            piecesSrc: 'guide.jpg',   
-            finalSrc: 'puzzle.png',   
-            rows: 3,
-            cols: 4,
-            snapThreshold: 0.15,
-            tabSizePercent: 20
+            piecesSrc: 'guide.jpg',   // Image source pour les pièces (SANS la date)
+            finalSrc: 'puzzle.png',   // Image finale (AVEC la date)
+            rows: 3,                  // Nombre de lignes
+            cols: 4,                  // Nombre de colonnes
+            snapThresholdMobile: 15,  // Distance d'aimantation (mobile)
+            snapThresholdDesktop: 10, // Distance d'aimantation (PC)
+            tabSizePercent: 22        // Taille des bosses (% de la pièce)
         };
 
+        // --- ELEMENTS DOM ---
         const container = document.getElementById('puzzle-container');
         const guide = document.getElementById('puzzle-guide');
         const finalReveal = document.getElementById('final-reveal');
         const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
-
-        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
         const bgImgElement = document.getElementById('bg-img');
-        
+
+        // --- CHARGEMENT DYNAMIQUE DU DÉCOR ---
+        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
         function tryLoadBackground(index) {
             if (index >= possibleBackgrounds.length) return;
-            const currentName = possibleBackgrounds[index];
-            const tester = new Image();
-            tester.onload = () => { bgImgElement.src = currentName; };
-            tester.onerror = () => { tryLoadBackground(index + 1); };
-            tester.src = currentName;
+            const img = new Image();
+            img.onload = () => { bgImgElement.src = possibleBackgrounds[index]; };
+            img.onerror = () => { tryLoadBackground(index + 1); };
+            img.src = possibleBackgrounds[index];
         }
         tryLoadBackground(0);
 
+        // --- VARIABLES DE JEU ---
         let pieces = [];
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
+        let imgPieces = new Image();
 
+        // --- 1. DÉMARRAGE : Chargement intelligent ---
+        imgPieces.src = CONFIG.piecesSrc;
+        imgPieces.onload = () => {
+            // Calcul du Ratio pour éviter la déformation
+            const ratio = imgPieces.width / imgPieces.height;
+            
+            // On applique ce ratio au CSS
+            container.style.aspectRatio = `${ratio}`;
+            
+            // Mise en place des images de fond
+            guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
+            finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
+            
+            // On attend que le DOM se mette à jour avant de lancer
+            requestAnimationFrame(() => initPuzzle());
+        };
+
+        imgPieces.onerror = () => {
+            alert("Erreur: Image 'guide.jpg' introuvable.");
+        };
+
+        // --- 2. INITIALISATION DU PUZZLE ---
+        function initPuzzle() {
+            // Nettoyage au cas où
+            pieces.forEach(p => p.remove());
+            pieces = [];
+            
+            const basePieceW = imgPieces.width / CONFIG.cols;
+            const basePieceH = imgPieces.height / CONFIG.rows;
+            const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
+
+            const shapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
+
+            for (let r = 0; r < CONFIG.rows; r++) {
+                for (let c = 0; c < CONFIG.cols; c++) {
+                    createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, shapes[r * CONFIG.cols + c]);
+                }
+            }
+            
+            // Petit délai pour que l'utilisateur voit le puzzle complet avant mélange
+            setTimeout(scramblePieces, 500);
+        }
+
+        // --- 3. GÉNÉRATEUR DE FORMES (Connecteurs parfaits) ---
         function generatePerfectShapes(rows, cols) {
             const shapes = [];
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     let top = 0, right = 0, bottom = 0, left = 0;
-                    if (r > 0) top = -shapes[(r - 1) * cols + c][2];
+                    if (r > 0) top = -shapes[(r - 1) * cols + c][2]; // Opposé du haut
                     if (c < cols - 1) right = Math.random() > 0.5 ? 1 : -1;
                     if (r < rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
-                    if (c > 0) left = -shapes[r * cols + (c - 1)][1];
+                    if (c > 0) left = -shapes[r * cols + (c - 1)][1]; // Opposé de gauche
                     shapes.push([top, right, bottom, left]);
                 }
             }
             return shapes;
         }
 
-        const imgPieces = new Image();
-        imgPieces.src = CONFIG.piecesSrc;
-        
-        imgPieces.onload = () => {
-            const ratio = imgPieces.width / imgPieces.height;
-            container.style.aspectRatio = `${ratio}`;
-            guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
-            finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
-            initPuzzle();
-        };
-
-        imgPieces.onerror = () => {
-            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
-        };
-
-        function initPuzzle() {
-            const basePieceW = imgPieces.width / CONFIG.cols;
-            const basePieceH = imgPieces.height / CONFIG.rows;
-            const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
-
-            const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
-
-            for (let r = 0; r < CONFIG.rows; r++) {
-                for (let c = 0; c < CONFIG.cols; c++) {
-                    const shapeIndex = r * CONFIG.cols + c;
-                    createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, generatedShapes[shapeIndex]);
-                }
-            }
-            scramblePieces();
-        }
-
+        // --- 4. CRÉATION DES PIÈCES (Canvas Haute Qualité) ---
         function createCanvasPiece(row, col, w, h, tabSize, shape) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // --- CORRECTION CLIPPING ---
-            // On calcule la taille totale théorique
+            // Gestion Retina / High DPI
+            const pixelRatio = window.devicePixelRatio || 1;
+            
             const totalW = w + tabSize * 2;
             const totalH = h + tabSize * 2;
             
-            // IMPORTANT : On arrondit à l'entier SUPÉRIEUR (ceil) pour le canvas
-            // Sinon les pixels fractionnaires sont coupés et créent des trous
-            canvas.width = Math.ceil(totalW);
-            canvas.height = Math.ceil(totalH);
+            // Dimensions physiques (réelles)
+            canvas.width = Math.ceil(totalW * pixelRatio);
+            canvas.height = Math.ceil(totalH * pixelRatio);
+            
+            // Dimensions CSS (affichage)
+            canvas.style.width = `${(totalW / imgPieces.width) * 100}%`;
+            canvas.style.height = 'auto'; // Garde le ratio
             
             canvas.classList.add('piece');
+            
+            // Mise à l'échelle du contexte pour dessiner net
+            ctx.scale(pixelRatio, pixelRatio);
 
             ctx.save();
             ctx.beginPath();
             
             const offsetX = tabSize;
             const offsetY = tabSize;
-            
-            // On dessine avec les valeurs flottantes précises (w, h)
             let x = offsetX, y = offsetY;
+            
             ctx.moveTo(x, y);
-
-            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y); 
+            // Dessin du contour (Haut, Droite, Bas, Gauche)
+            shape[0] !== 0 ? drawTab(ctx, x, y, w, 0, shape[0] * tabSize) : ctx.lineTo(x + w, y);
             x += w;
-            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h); 
+            shape[1] !== 0 ? drawTab(ctx, x, y, 0, h, shape[1] * tabSize) : ctx.lineTo(x, y + h);
             y += h;
-            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y); 
+            shape[2] !== 0 ? drawTab(ctx, x, y, -w, 0, shape[2] * tabSize) : ctx.lineTo(x - w, y);
             x -= w;
-            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h); 
+            shape[3] !== 0 ? drawTab(ctx, x, y, 0, -h, shape[3] * tabSize) : ctx.lineTo(x, y - h);
 
             ctx.closePath();
             ctx.clip();
-            
+
+            // Dessin de l'image source dans la forme découpée
             ctx.drawImage(imgPieces, 
-                col * w - offsetX, row * h - offsetY,
-                totalW, totalH, // On demande la taille totale
-                0, 0, totalW, totalH // On dessine sur toute la surface
+                col * w - offsetX, row * h - offsetY, // Source X, Y
+                totalW, totalH,                       // Source W, H
+                0, 0, totalW, totalH                  // Dest X, Y, W, H
             );
             
-            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
+            // Joli contour pour détacher la pièce
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 0.5; ctx.stroke();
             ctx.restore();
 
-            // Style Responsive : on utilise les pourcentages basés sur l'image d'origine
-            // Cela garantit que visuellement, tout s'aligne parfaitement
-            canvas.style.width = `${(totalW / imgPieces.width) * 100}%`;
-            canvas.style.height = 'auto'; // Garde le ratio
-            
-            const pctPerPixelX = 100 / imgPieces.width;
-            const pctPerPixelY = 100 / imgPieces.height;
-            canvas.dataset.targetX = (col * w - tabSize) * pctPerPixelX;
-            canvas.dataset.targetY = (row * h - tabSize) * pctPerPixelY;
+            // Stockage de la position gagnante (en %)
+            const pctX = 100 / imgPieces.width;
+            const pctY = 100 / imgPieces.height;
+            canvas.dataset.targetX = (col * w - tabSize) * pctX;
+            canvas.dataset.targetY = (row * h - tabSize) * pctY;
 
             addDragListeners(canvas);
             container.appendChild(canvas);
             pieces.push(canvas);
         }
 
+        // Fonction utilitaire pour dessiner les courbes de Bézier (les bosses)
         function drawTab(ctx, x, y, dx, dy, size) {
             const l = Math.sqrt(dx*dx + dy*dy), neck = l * 0.35;
             const ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
             const x1 = x + ux * (l - neck)/2, y1 = y + uy * (l - neck)/2;
             const x2 = x + ux * (l + neck)/2, y2 = y + uy * (l + neck)/2;
-            ctx.lineTo(x1, y1);
             const h = Math.abs(size), sign = size > 0 ? 1 : -1;
-            const cx1 = x1 + nx * sign * h * 0.2, cy1 = y1 + ny * sign * h * 0.2;
-            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h, ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
-            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h, ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
-            const cx2 = x2 + nx * sign * h * 0.2, cy2 = y2 + ny * sign * h * 0.2;
-            ctx.bezierCurveTo(cx1, cy1, tx1, ty1, x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h);
-            ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
+            
+            ctx.lineTo(x1, y1);
+            ctx.bezierCurveTo(
+                x1 + nx * sign * h * 0.2, y1 + ny * sign * h * 0.2,
+                x + ux * (l/2 - neck*0.5) + nx * sign * h, y + uy * (l/2 - neck*0.5) + ny * sign * h,
+                x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h
+            );
+            ctx.bezierCurveTo(
+                x + ux * (l/2 + neck*0.5) + nx * sign * h, y + uy * (l/2 + neck*0.5) + ny * sign * h,
+                x2 + nx * sign * h * 0.2, y2 + ny * sign * h * 0.2,
+                x2, y2
+            );
             ctx.lineTo(x + dx, y + dy);
         }
 
+        // --- 5. MÉLANGE INTELLIGENT (Responsive) ---
         function scramblePieces() {
-            const containerRect = container.getBoundingClientRect();
+            const rect = container.getBoundingClientRect();
             const winW = window.innerWidth;
             const winH = window.innerHeight;
-            const headerHeight = document.getElementById('game-ui').offsetHeight + 40; 
             const isMobile = winW < 600;
 
-            pieces.forEach(piece => {
-                if(piece.classList.contains('locked')) return;
+            pieces.forEach(p => {
+                const pW = p.offsetWidth;
+                const pH = p.offsetHeight;
                 
-                const pW = piece.offsetWidth || 100;
-                const pH = piece.offsetHeight || 100;
-                
-                let minX, maxX, minY, maxY;
+                // On définit des zones sûres autour du puzzle
+                let minX = 10, maxX = winW - pW - 10;
+                let minY = 60, maxY = winH - pH - 10; // 60px marge haut pour titre
 
-                if (isMobile) {
-                    minX = 10;
-                    maxX = winW - pW - 10;
-                    minY = headerHeight; 
-                    maxY = winH - pH - 10;
-                    if ((winH - containerRect.bottom) > 150) {
-                        if (Math.random() > 0.5) minY = containerRect.bottom;
-                    }
-                } else {
-                    const side = Math.floor(Math.random() * 3);
-                    if (side === 0) { // Gauche
-                        minX = 10; maxX = containerRect.left - pW - 10;
-                        minY = headerHeight; maxY = winH - pH - 10;
-                    } else if (side === 1) { // Droite
-                        minX = containerRect.right + 10; maxX = winW - pW - 10;
-                        minY = headerHeight; maxY = winH - pH - 10;
-                    } else { // Bas
-                        minX = 10; maxX = winW - pW - 10;
-                        minY = containerRect.bottom + 10; maxY = winH - pH - 10;
-                    }
-                    if (maxX < minX) { minX = 10; maxX = winW - pW - 10; }
-                }
+                // Essayer de ne pas mettre sur le puzzle lui-même si possible
+                // Sur mobile, on favorise le bas de l'écran ou les côtés si larges
                 
-                const pageX = minX + Math.random() * (maxX - minX);
-                const pageY = minY + Math.random() * (maxY - minY);
+                // Position aléatoire brute
+                const randX = minX + Math.random() * (maxX - minX);
+                const randY = minY + Math.random() * (maxY - minY);
 
-                piece.style.left = `${pageX - containerRect.left}px`;
-                piece.style.top = `${pageY - containerRect.top}px`;
+                // IMPORTANT: Conversion en coordonnées relatives au conteneur
+                // car les pièces sont des enfants de #puzzle-container
+                p.style.left = (randX - rect.left) + 'px';
+                p.style.top = (randY - rect.top) + 'px';
             });
         }
 
+        // --- 6. GESTION DU DRAG & DROP (Tactile & Souris) ---
         function addDragListeners(el) {
             let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
-            
+
             const onStart = (e) => {
-                if (el.classList.contains('locked')) return; 
+                if (el.classList.contains('locked')) return;
                 isDragging = true;
                 el.classList.add('dragging');
-                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                startX = clientX; startY = clientY;
-                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
+                
+                // Support Touch vs Mouse
+                const ptr = e.type.includes('touch') ? e.touches[0] : e;
+                startX = ptr.clientX;
+                startY = ptr.clientY;
+                initialLeft = el.offsetLeft;
+                initialTop = el.offsetTop;
             };
-            
+
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault(); 
-                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                el.style.left = `${initialLeft + (clientX - startX)}px`;
-                el.style.top = `${initialTop + (clientY - startY)}px`;
+                e.preventDefault(); // Stop scroll
+                const ptr = e.type.includes('touch') ? e.touches[0] : e;
+                
+                const dx = ptr.clientX - startX;
+                const dy = ptr.clientY - startY;
+                
+                el.style.left = (initialLeft + dx) + 'px';
+                el.style.top = (initialTop + dy) + 'px';
             };
-            
+
             const onEnd = () => {
                 if (!isDragging) return;
                 isDragging = false;
@@ -447,34 +483,44 @@
                 checkSnap(el);
             };
 
-            el.addEventListener('mousedown', onStart); el.addEventListener('touchstart', onStart, {passive:false});
-            window.addEventListener('mousemove', onMove); window.addEventListener('touchmove', onMove, {passive:false});
-            window.addEventListener('mouseup', onEnd); window.addEventListener('touchend', onEnd);
+            el.addEventListener('mousedown', onStart);
+            el.addEventListener('touchstart', onStart, {passive: false});
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('touchmove', onMove, {passive: false});
+            window.addEventListener('mouseup', onEnd);
+            window.addEventListener('touchend', onEnd);
         }
 
+        // --- 7. AIMANTATION & VICTOIRE ---
         function checkSnap(el) {
-            const containerW = container.offsetWidth;
-            const containerH = container.offsetHeight;
-            const currentX = (el.offsetLeft / containerW) * 100;
-            const currentY = (el.offsetTop / containerH) * 100;
-            const targetX = parseFloat(el.dataset.targetX);
-            const targetY = parseFloat(el.dataset.targetY);
-            const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
+            const cW = container.offsetWidth;
+            const cH = container.offsetHeight;
             
-            const isMobile = window.innerWidth < 600;
-            const threshold = isMobile ? 20 : 8;
+            // Position actuelle en %
+            const curX = (el.offsetLeft / cW) * 100;
+            const curY = (el.offsetTop / cH) * 100;
+            
+            // Cible en %
+            const tarX = parseFloat(el.dataset.targetX);
+            const tarY = parseFloat(el.dataset.targetY);
+            
+            // Distance (Pythagore)
+            const dist = Math.sqrt(Math.pow(curX - tarX, 2) + Math.pow(curY - tarY, 2));
+            
+            // Seuil adapté au device
+            const threshold = window.innerWidth < 600 ? CONFIG.snapThresholdMobile : CONFIG.snapThresholdDesktop;
 
             if (dist < threshold) {
-                snapPiece(el, targetX, targetY);
+                // SNAP !
+                el.style.left = tarX + '%';
+                el.style.top = tarY + '%';
+                el.classList.add('locked');
+                lockedCount++;
+                
+                if (lockedCount === totalPieces) {
+                    onWin();
+                }
             }
-        }
-
-        function snapPiece(el, x, y) {
-            el.style.left = `${x}%`;
-            el.style.top = `${y}%`;
-            el.classList.add('locked');
-            lockedCount++;
-            if (lockedCount === totalPieces) onWin();
         }
 
         function onWin() {
@@ -484,18 +530,24 @@
                 instructionText.style.display = 'none';
                 successMsg.classList.add('visible');
                 triggerConfetti();
-            }, 500);
+            }, 600);
         }
 
         function triggerConfetti() {
-            var count = 200;
-            var defaults = { origin: { y: 1 }, zIndex: 9999 };
-            function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
-            fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.1, { spread: 120, startVelocity: 45, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            const count = 200;
+            const defaults = { origin: { y: 0.7 }, zIndex: 9999 };
+
+            function fire(ratio, opts) {
+                confetti(Object.assign({}, defaults, opts, {
+                    particleCount: Math.floor(count * ratio)
+                }));
+            }
+
+            fire(0.25, { spread: 26, startVelocity: 55 });
+            fire(0.2, { spread: 60 });
+            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+            fire(0.1, { spread: 120, startVelocity: 45 });
         }
     </script>
 </body>
