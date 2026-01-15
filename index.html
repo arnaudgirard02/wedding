@@ -23,37 +23,34 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start; /* On aligne en haut pour gérer les petits écrans */
+            justify-content: flex-start; 
             height: 100vh;
             overflow: hidden;
             position: relative;
         }
 
-        /* --- 2. DÉCOR (FOND) - CORRIGÉ --- */
+        /* --- 2. DÉCOR (FOND) - MODIFIÉ --- */
         #background-container {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            /* On autorise le conteneur à prendre de la place mais on coupe ce qui dépasse en haut */
-            height: auto;
-            max-height: 50vh; /* Limite la hauteur max du décor à 50% de l'écran */
-            overflow: hidden; /* COUPE le haut de l'image si elle est trop grande */
+            /* On laisse la hauteur libre pour ne jamais couper l'image */
+            height: auto; 
             
-            z-index: -1; /* RESTE DERRIÈRE tout le reste */
+            z-index: 0; /* Reste derrière (Puzzle est à 50) */
             pointer-events: none;
             
             display: flex;
-            align-items: flex-end; /* Colle l'image en bas du conteneur */
+            align-items: flex-end; /* Colle l'image au bas */
             justify-content: center;
         }
 
         #bg-img {
             display: block;
-            width: 100%; /* FORCE LA LARGEUR TOTALE */
-            height: auto; /* Garde les proportions */
+            width: 100%; /* LARGEUR TOTALE GARANTIE */
+            height: auto; /* Garde les proportions, grandit vers le haut */
             opacity: 1; 
-            object-fit: cover; /* S'assure que ça remplit bien */
         }
 
         /* --- 3. INTERFACE --- */
@@ -66,7 +63,7 @@
             width: 90%;
             max-width: 600px;
             position: relative;
-            flex-shrink: 0; /* Empêche le titre de s'écraser */
+            flex-shrink: 0; 
         }
 
         h1 {
@@ -85,7 +82,6 @@
 
         /* --- 4. CONTENEUR PUZZLE --- */
         #puzzle-wrapper {
-            /* Wrapper flexible pour centrer le puzzle dans l'espace restant */
             flex-grow: 1;
             display: flex;
             align-items: flex-start;
@@ -97,10 +93,9 @@
 
         #puzzle-container {
             position: relative;
-            /* La taille et le ratio seront définis par JS */
+            /* Dimensions gérées par JS */
             width: 90vw; 
             max-width: 600px;
-            /* Limite la hauteur pour ne pas sortir de l'écran sur mobile */
             max-height: 60vh; 
             background-color: transparent; 
             border-radius: 4px;
@@ -108,7 +103,6 @@
             transition: background-color 0.5s;
         }
 
-        /* L'image fantôme (Guide) */
         #puzzle-guide {
             position: absolute;
             top: 0;
@@ -123,7 +117,6 @@
             pointer-events: none;
         }
 
-        /* L'image finale (Victoire) */
         #final-reveal {
             position: absolute;
             top: 0;
@@ -237,13 +230,13 @@
     <script>
         // --- CONFIGURATION ---
         const CONFIG = {
-            piecesSrc: 'guide.jpg',   // Image source pour les pièces (SANS la date)
-            finalSrc: 'puzzle.png',   // Image finale (AVEC la date)
-            rows: 3,                  // Nombre de lignes
-            cols: 4,                  // Nombre de colonnes
-            snapThresholdMobile: 15,  // Distance d'aimantation (mobile)
-            snapThresholdDesktop: 10, // Distance d'aimantation (PC)
-            tabSizePercent: 22        // Taille des bosses (% de la pièce)
+            piecesSrc: 'guide.jpg',   // Image source pour les pièces
+            finalSrc: 'puzzle.png',   // Image finale
+            rows: 3,                  
+            cols: 4,                  
+            snapThresholdMobile: 15,  
+            snapThresholdDesktop: 10, 
+            tabSizePercent: 22        
         };
 
         const container = document.getElementById('puzzle-container');
