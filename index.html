@@ -29,27 +29,31 @@
             position: relative;
         }
 
-        /* --- 2. DÉCOR (FOND) --- */
+        /* --- 2. DÉCOR (FOND) - CORRIGÉ --- */
         #background-container {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            height: auto; 
-            z-index: 0;   
+            /* On autorise le conteneur à prendre de la place mais on coupe ce qui dépasse en haut */
+            height: auto;
+            max-height: 50vh; /* Limite la hauteur max du décor à 50% de l'écran */
+            overflow: hidden; /* COUPE le haut de l'image si elle est trop grande */
+            
+            z-index: -1; /* RESTE DERRIÈRE tout le reste */
             pointer-events: none;
+            
             display: flex;
-            align-items: flex-end; 
+            align-items: flex-end; /* Colle l'image en bas du conteneur */
             justify-content: center;
         }
 
         #bg-img {
             display: block;
-            width: 100%;
-            height: auto;
-            max-height: 40vh; /* Empêche le décor de manger tout l'écran */ 
-            object-fit: contain;
+            width: 100%; /* FORCE LA LARGEUR TOTALE */
+            height: auto; /* Garde les proportions */
             opacity: 1; 
+            object-fit: cover; /* S'assure que ça remplit bien */
         }
 
         /* --- 3. INTERFACE --- */
@@ -79,7 +83,7 @@
             color: #dfa668;
         }
 
-        /* --- 4. CONTENEUR PUZZLE (Le coeur du problème) --- */
+        /* --- 4. CONTENEUR PUZZLE --- */
         #puzzle-wrapper {
             /* Wrapper flexible pour centrer le puzzle dans l'espace restant */
             flex-grow: 1;
@@ -97,7 +101,7 @@
             width: 90vw; 
             max-width: 600px;
             /* Limite la hauteur pour ne pas sortir de l'écran sur mobile */
-            max-height: 65vh; 
+            max-height: 60vh; 
             background-color: transparent; 
             border-radius: 4px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.05);
@@ -111,7 +115,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-size: cover; /* S'adapte parfaitement au conteneur */
+            background-size: cover; 
             background-position: center;
             background-repeat: no-repeat;
             opacity: 0.2; 
@@ -140,12 +144,10 @@
             position: absolute;
             cursor: grab;
             z-index: 60;
-            /* Ombre légère pour performance */
             filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));
             transition: transform 0.1s;
             touch-action: none;
             transform-origin: center center;
-            /* Rendu net sur iPhone */
             -webkit-font-smoothing: antialiased;
         }
 
@@ -161,7 +163,7 @@
             cursor: default;
             filter: none;
             pointer-events: none; 
-            transition: left 0.2s, top 0.2s; /* Petit effet smooth quand ça snap */
+            transition: left 0.2s, top 0.2s;
         }
 
         /* --- 6. MESSAGE DE VICTOIRE --- */
@@ -201,7 +203,6 @@
             line-height: 1.4;
         }
 
-        /* État final */
         .puzzle-complete #final-reveal {
             opacity: 1; 
         }
@@ -245,7 +246,6 @@
             tabSizePercent: 22        // Taille des bosses (% de la pièce)
         };
 
-        // --- ELEMENTS DOM ---
         const container = document.getElementById('puzzle-container');
         const guide = document.getElementById('puzzle-guide');
         const finalReveal = document.getElementById('final-reveal');
@@ -264,26 +264,18 @@
         }
         tryLoadBackground(0);
 
-        // --- VARIABLES DE JEU ---
         let pieces = [];
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
         let imgPieces = new Image();
 
-        // --- 1. DÉMARRAGE : Chargement intelligent ---
+        // --- DÉMARRAGE ---
         imgPieces.src = CONFIG.piecesSrc;
         imgPieces.onload = () => {
-            // Calcul du Ratio pour éviter la déformation
             const ratio = imgPieces.width / imgPieces.height;
-            
-            // On applique ce ratio au CSS
             container.style.aspectRatio = `${ratio}`;
-            
-            // Mise en place des images de fond
             guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
             finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
-            
-            // On attend que le DOM se mette à jour avant de lancer
             requestAnimationFrame(() => initPuzzle());
         };
 
@@ -291,9 +283,7 @@
             alert("Erreur: Image 'guide.jpg' introuvable.");
         };
 
-        // --- 2. INITIALISATION DU PUZZLE ---
         function initPuzzle() {
-            // Nettoyage au cas où
             pieces.forEach(p => p.remove());
             pieces = [];
             
@@ -309,48 +299,38 @@
                 }
             }
             
-            // Petit délai pour que l'utilisateur voit le puzzle complet avant mélange
             setTimeout(scramblePieces, 500);
         }
 
-        // --- 3. GÉNÉRATEUR DE FORMES (Connecteurs parfaits) ---
         function generatePerfectShapes(rows, cols) {
             const shapes = [];
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     let top = 0, right = 0, bottom = 0, left = 0;
-                    if (r > 0) top = -shapes[(r - 1) * cols + c][2]; // Opposé du haut
+                    if (r > 0) top = -shapes[(r - 1) * cols + c][2]; 
                     if (c < cols - 1) right = Math.random() > 0.5 ? 1 : -1;
                     if (r < rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
-                    if (c > 0) left = -shapes[r * cols + (c - 1)][1]; // Opposé de gauche
+                    if (c > 0) left = -shapes[r * cols + (c - 1)][1]; 
                     shapes.push([top, right, bottom, left]);
                 }
             }
             return shapes;
         }
 
-        // --- 4. CRÉATION DES PIÈCES (Canvas Haute Qualité) ---
         function createCanvasPiece(row, col, w, h, tabSize, shape) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Gestion Retina / High DPI
             const pixelRatio = window.devicePixelRatio || 1;
-            
             const totalW = w + tabSize * 2;
             const totalH = h + tabSize * 2;
             
-            // Dimensions physiques (réelles)
             canvas.width = Math.ceil(totalW * pixelRatio);
             canvas.height = Math.ceil(totalH * pixelRatio);
-            
-            // Dimensions CSS (affichage)
             canvas.style.width = `${(totalW / imgPieces.width) * 100}%`;
-            canvas.style.height = 'auto'; // Garde le ratio
+            canvas.style.height = 'auto'; 
             
             canvas.classList.add('piece');
-            
-            // Mise à l'échelle du contexte pour dessiner net
             ctx.scale(pixelRatio, pixelRatio);
 
             ctx.save();
@@ -361,7 +341,6 @@
             let x = offsetX, y = offsetY;
             
             ctx.moveTo(x, y);
-            // Dessin du contour (Haut, Droite, Bas, Gauche)
             shape[0] !== 0 ? drawTab(ctx, x, y, w, 0, shape[0] * tabSize) : ctx.lineTo(x + w, y);
             x += w;
             shape[1] !== 0 ? drawTab(ctx, x, y, 0, h, shape[1] * tabSize) : ctx.lineTo(x, y + h);
@@ -373,19 +352,16 @@
             ctx.closePath();
             ctx.clip();
 
-            // Dessin de l'image source dans la forme découpée
             ctx.drawImage(imgPieces, 
-                col * w - offsetX, row * h - offsetY, // Source X, Y
-                totalW, totalH,                       // Source W, H
-                0, 0, totalW, totalH                  // Dest X, Y, W, H
+                col * w - offsetX, row * h - offsetY, 
+                totalW, totalH,                       
+                0, 0, totalW, totalH                  
             );
             
-            // Joli contour pour détacher la pièce
             ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
             ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 0.5; ctx.stroke();
             ctx.restore();
 
-            // Stockage de la position gagnante (en %)
             const pctX = 100 / imgPieces.width;
             const pctY = 100 / imgPieces.height;
             canvas.dataset.targetX = (col * w - tabSize) * pctX;
@@ -396,7 +372,6 @@
             pieces.push(canvas);
         }
 
-        // Fonction utilitaire pour dessiner les courbes de Bézier (les bosses)
         function drawTab(ctx, x, y, dx, dy, size) {
             const l = Math.sqrt(dx*dx + dy*dy), neck = l * 0.35;
             const ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
@@ -418,36 +393,26 @@
             ctx.lineTo(x + dx, y + dy);
         }
 
-        // --- 5. MÉLANGE INTELLIGENT (Responsive) ---
         function scramblePieces() {
             const rect = container.getBoundingClientRect();
             const winW = window.innerWidth;
             const winH = window.innerHeight;
-            const isMobile = winW < 600;
 
             pieces.forEach(p => {
                 const pW = p.offsetWidth;
                 const pH = p.offsetHeight;
                 
-                // On définit des zones sûres autour du puzzle
                 let minX = 10, maxX = winW - pW - 10;
-                let minY = 60, maxY = winH - pH - 10; // 60px marge haut pour titre
+                let minY = 60, maxY = winH - pH - 10; 
 
-                // Essayer de ne pas mettre sur le puzzle lui-même si possible
-                // Sur mobile, on favorise le bas de l'écran ou les côtés si larges
-                
-                // Position aléatoire brute
                 const randX = minX + Math.random() * (maxX - minX);
                 const randY = minY + Math.random() * (maxY - minY);
 
-                // IMPORTANT: Conversion en coordonnées relatives au conteneur
-                // car les pièces sont des enfants de #puzzle-container
                 p.style.left = (randX - rect.left) + 'px';
                 p.style.top = (randY - rect.top) + 'px';
             });
         }
 
-        // --- 6. GESTION DU DRAG & DROP (Tactile & Souris) ---
         function addDragListeners(el) {
             let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
 
@@ -455,8 +420,6 @@
                 if (el.classList.contains('locked')) return;
                 isDragging = true;
                 el.classList.add('dragging');
-                
-                // Support Touch vs Mouse
                 const ptr = e.type.includes('touch') ? e.touches[0] : e;
                 startX = ptr.clientX;
                 startY = ptr.clientY;
@@ -466,12 +429,10 @@
 
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault(); // Stop scroll
+                e.preventDefault(); 
                 const ptr = e.type.includes('touch') ? e.touches[0] : e;
-                
                 const dx = ptr.clientX - startX;
                 const dy = ptr.clientY - startY;
-                
                 el.style.left = (initialLeft + dx) + 'px';
                 el.style.top = (initialTop + dy) + 'px';
             };
@@ -491,35 +452,22 @@
             window.addEventListener('touchend', onEnd);
         }
 
-        // --- 7. AIMANTATION & VICTOIRE ---
         function checkSnap(el) {
             const cW = container.offsetWidth;
             const cH = container.offsetHeight;
-            
-            // Position actuelle en %
             const curX = (el.offsetLeft / cW) * 100;
             const curY = (el.offsetTop / cH) * 100;
-            
-            // Cible en %
             const tarX = parseFloat(el.dataset.targetX);
             const tarY = parseFloat(el.dataset.targetY);
-            
-            // Distance (Pythagore)
             const dist = Math.sqrt(Math.pow(curX - tarX, 2) + Math.pow(curY - tarY, 2));
-            
-            // Seuil adapté au device
             const threshold = window.innerWidth < 600 ? CONFIG.snapThresholdMobile : CONFIG.snapThresholdDesktop;
 
             if (dist < threshold) {
-                // SNAP !
                 el.style.left = tarX + '%';
                 el.style.top = tarY + '%';
                 el.classList.add('locked');
                 lockedCount++;
-                
-                if (lockedCount === totalPieces) {
-                    onWin();
-                }
+                if (lockedCount === totalPieces) onWin();
             }
         }
 
@@ -536,13 +484,11 @@
         function triggerConfetti() {
             const count = 200;
             const defaults = { origin: { y: 0.7 }, zIndex: 9999 };
-
             function fire(ratio, opts) {
                 confetti(Object.assign({}, defaults, opts, {
                     particleCount: Math.floor(count * ratio)
                 }));
             }
-
             fire(0.25, { spread: 26, startVelocity: 55 });
             fire(0.2, { spread: 60 });
             fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
