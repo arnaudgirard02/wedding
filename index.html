@@ -2,537 +2,555 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Save the Date - Puzzle</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        /* --- 1. RESET & BASE --- */
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden; /* Empêche tout scroll global */
-            background-color: #ffffff;
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            touch-action: none; /* DÉSACTIVE le scroll tactile sur tout l'écran pour le jeu */
+        /* --- RESET & BASE --- */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            /* On retire le touch-action: none global pour permettre le scroll sur la page */
         }
 
         body {
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff; 
+            color: #333;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            /* Utilise dvh pour s'adapter à la barre d'adresse mobile dynamique */
-            height: 100dvh; 
+            justify-content: flex-start;
+            min-height: 100vh; /* min-height au lieu de height fixe pour permettre le scroll */
+            overflow-y: auto;  /* Scroll vertical autorisé */
+            overflow-x: hidden; /* Pas de scroll horizontal */
             position: relative;
         }
 
-        /* --- 2. DÉCOR DE FOND (FIXE) --- */
-        #background-layer {
+        /* --- ARRIÈRE-PLAN --- */
+        #background-container {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            height: 100%;
-            z-index: 1; /* Tout au fond */
+            height: auto; 
+            z-index: 0;   
             pointer-events: none;
             display: flex;
-            align-items: flex-end; /* Colle l'image en bas */
+            align-items: flex-end; 
             justify-content: center;
         }
 
         #bg-img {
             display: block;
             width: 100%;
-            height: auto;
-            max-height: 45vh; /* Ne prend pas plus de 45% de la hauteur */
-            object-fit: cover; /* S'assure de remplir la largeur */
-            object-position: bottom center;
+            height: auto; 
+            opacity: 1; 
         }
 
-        /* --- 3. UI (TITRE) --- */
-        #ui-layer {
-            position: relative;
-            z-index: 10;
-            margin-top: max(20px, env(safe-area-inset-top)); /* Gère l'encoche iPhone */
+        /* --- UI ELEMENTS --- */
+        #game-ui {
             text-align: center;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            z-index: 50; 
+            pointer-events: none;
             width: 90%;
-            flex-shrink: 0; /* Ne s'écrase pas */
-            padding-bottom: 10px;
+            max-width: 600px;
+            position: relative;
         }
 
         h1 {
-            font-size: clamp(1rem, 5vw, 1.4rem); /* Taille responsive */
-            color: #444;
+            font-size: 1.2rem;
             font-weight: 400;
             margin: 0;
-            line-height: 1.3;
+            opacity: 0.8;
+            transition: opacity 0.5s ease;
             text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            line-height: 1.4;
         }
-        
-        .highlight { font-weight: 700; color: #dfa668; }
 
-        /* --- 4. ZONE DE JEU (Flexible) --- */
-        #game-wrapper {
-            flex-grow: 1; /* Prend tout l'espace restant entre le titre et le bas */
-            width: 100%;
-            display: flex;
-            align-items: flex-start; /* Aligne le puzzle vers le haut de la zone dispo */
-            justify-content: center;
+        .instruction-highlight {
+            font-weight: 600;
+            color: #dfa668;
+        }
+
+        /* --- PUZZLE CONTAINER --- */
+        #puzzle-container {
             position: relative;
-            z-index: 20;
-            padding-top: 10px;
-            overflow: hidden; /* Les pièces peuvent bouger dedans */
+            z-index: 50; 
+            width: 90vw;
+            max-width: 600px;
+            aspect-ratio: 4/3; 
+            background-color: #ffffff; 
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: background-color 0.5s;
+            margin-bottom: 150px; /* Marge en bas pour laisser de la place aux pièces éparpillées */
+            
+            /* IMPORTANT : On bloque le scroll natif uniquement ici et sur les pièces */
+            touch-action: none;
         }
 
-        /* Le conteneur du puzzle lui-même */
-        #puzzle-board {
-            position: relative;
-            /* Les dimensions seront forcées par JS pour respecter le ratio image */
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            background-color: rgba(255,255,255,0.2); /* Légèrement visible pour debug */
-            border-radius: 4px;
-            /* Transition fluide si on resize */
-            transition: width 0.3s, height 0.3s;
-        }
-
-        /* Images internes (Guide et Révélation) */
-        .puzzle-bg-layer {
+        /* Le guide (image de fond atténuée) */
+        #puzzle-guide {
             position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background-size: 100% 100%; /* Force le remplissage exact */
-            pointer-events: none;
-            border-radius: 4px;
-        }
-
-        #guide-image {
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: 100% 100%;
             opacity: 0.25;
-            z-index: 5;
-            border: 1px dashed rgba(0,0,0,0.1);
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            z-index: 0;
         }
 
-        #final-image {
+        /* L'image de RÉVÉLATION (AVEC DATE) */
+        #final-reveal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: 100% 100%;
             opacity: 0;
-            z-index: 100; /* Passe devant tout à la fin */
-            transition: opacity 1s ease;
+            z-index: 150; 
+            transition: opacity 1.5s ease-in-out;
+            pointer-events: none;
+            border-radius: 8px;
         }
 
-        /* --- 5. PIÈCES --- */
+        /* --- PIECES --- */
         .piece {
             position: absolute;
-            z-index: 50;
             cursor: grab;
-            touch-action: none;
-            /* Optimisation rendu mobile */
-            transform-origin: center center;
-            -webkit-tap-highlight-color: transparent;
-            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));
+            z-index: 60;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
             transition: transform 0.1s;
+            
+            /* Bloque le scroll quand on touche une pièce */
+            touch-action: none; 
         }
 
         .piece.dragging {
             z-index: 999;
-            transform: scale(1.15);
-            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.3));
             cursor: grabbing;
+            transform: scale(1.1);
+            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
         }
 
         .piece.locked {
-            z-index: 10;
-            pointer-events: none;
-            transition: left 0.2s, top 0.2s;
+            z-index: 40;
+            cursor: default;
             filter: none;
+            pointer-events: none;
+            transition: all 0.3s ease;
         }
 
-        /* --- 6. MESSAGE VICTOIRE --- */
-        #win-modal {
+        /* --- SUCCESS STATE --- */
+        #success-message {
             position: fixed;
-            bottom: -200px;
+            bottom: -100px;
             left: 50%;
             transform: translateX(-50%);
-            width: 85%;
-            max-width: 400px;
-            background: rgba(255,255,255,0.95);
-            padding: 20px;
-            border-radius: 20px;
+            background: white;
+            padding: 20px 30px;
+            border-radius: 50px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             text-align: center;
-            z-index: 2000;
             opacity: 0;
-            transition: bottom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s;
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 85%;
+            max-width: 400px;
+            z-index: 1000;
         }
 
-        #win-modal.show {
+        #success-message.visible {
             bottom: 30px;
             opacity: 1;
         }
 
-        /* États de fin */
-        body.finished #final-image { opacity: 1; }
-        body.finished #guide-image { opacity: 0; }
-        body.finished .piece { pointer-events: none; } /* On ne touche plus */
+        #success-message h2 {
+            margin: 0 0 5px 0;
+            color: #2c3e50;
+            font-size: 1.4rem;
+        }
+
+        #success-message p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.95rem;
+        }
+
+        .puzzle-complete #final-reveal {
+            opacity: 1; 
+        }
+        
+        .puzzle-complete #puzzle-guide {
+            opacity: 0;
+        }
+        
+        .puzzle-complete#puzzle-container {
+            background-color: transparent;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+
+        /* --- ORIENTATION (Optionnel) --- */
+        /* Si tu veux afficher un message "Tournez votre écran" en portrait */
+        #rotate-device { display: none; }
+        
+        /* Décommente les lignes ci-dessous si tu veux forcer le paysage */
+        /*
+        @media screen and (max-width: 600px) and (orientation: portrait) {
+             #rotate-device {
+                display: flex;
+                position: fixed; top:0; left:0; width:100%; height:100%;
+                background: rgba(255,255,255,0.95);
+                z-index: 9999;
+                justify-content: center; align-items: center; text-align: center;
+                flex-direction: column;
+                padding: 20px;
+            }
+        }
+        */
+
     </style>
 </head>
 <body>
 
-    <div id="background-layer">
-        <img id="bg-img" src="" alt="Décor">
+    <div id="rotate-device">
+        <h2>Passez en mode paysage 🔄</h2>
+        <p>Pour une meilleure expérience, tournez votre téléphone.</p>
     </div>
 
-    <div id="ui-layer">
-        <h1 id="title-text">Assemblez les pièces pour découvrir<br><span class="highlight">la date du mariage</span></h1>
+    <div id="background-container">
+        <img id="bg-img" src="" alt="">
     </div>
 
-    <div id="game-wrapper">
-        <div id="puzzle-board">
-            <div id="guide-image" class="puzzle-bg-layer"></div>
-            <div id="final-image" class="puzzle-bg-layer"></div>
-            </div>
+    <div id="game-ui">
+        <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
     </div>
 
-    <div id="win-modal">
-        <h2 style="margin:0 0 10px 0; color:#333;">Félicitations ! 🎉</h2>
-        <p style="margin:0; color:#666;">Vous avez découvert la date !<br>Hâte de vous y voir.</p>
+    <div id="puzzle-container">
+        <div id="puzzle-guide"></div>
+        <div id="final-reveal"></div>
+    </div>
+
+    <div id="success-message">
+        <h2>Félicitations !</h2>
+        <p> Vous avez maintenant la date du mariage ! Hâte de vous y voir 🥰</p>
     </div>
 
     <script>
-        // --- CONFIGURATION ---
-        const CONF = {
-            imgPuzzle: 'guide.jpg',   // Image sans texte
-            imgFinal:  'puzzle.png',  // Image avec texte
-            bgImage:   'bg.jpg',      // Fond
+        const CONFIG = {
+            piecesSrc: 'guide.jpg',   // Assure-toi que ce fichier est bien dans le même dossier
+            finalSrc: 'puzzle.png',   // Assure-toi que ce fichier est bien dans le même dossier
             rows: 3,
             cols: 4,
-            snapDist: 20, // Distance d'aimantation en pixels (plus large pour mobile)
-            tabSize: 0.2  // Taille des "oreilles" (20% de la pièce)
+            snapThreshold: 0.15,
+            tabSizePercent: 20
         };
 
-        // --- VARIABLES GLOBALES ---
+        const container = document.getElementById('puzzle-container');
+        const guide = document.getElementById('puzzle-guide');
+        const finalReveal = document.getElementById('final-reveal');
+        const instructionText = document.getElementById('instruction-text');
+        const successMsg = document.getElementById('success-message');
+
+        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
+        const bgImgElement = document.getElementById('bg-img');
+        
+        // Chargement background
+        function tryLoadBackground(index) {
+            if (index >= possibleBackgrounds.length) return;
+            const currentName = possibleBackgrounds[index];
+            const tester = new Image();
+            tester.onload = () => { bgImgElement.src = currentName; };
+            tester.onerror = () => { tryLoadBackground(index + 1); };
+            tester.src = currentName;
+        }
+        tryLoadBackground(0);
+
         let pieces = [];
         let lockedCount = 0;
-        let imgObj = null; // L'objet Image chargé
-        const board = document.getElementById('puzzle-board');
-        const wrapper = document.getElementById('game-wrapper');
+        const totalPieces = CONFIG.rows * CONFIG.cols;
 
-        // --- INITIALISATION ---
-        function init() {
-            // 1. Charger le fond
-            const bgElement = document.getElementById('bg-img');
-            bgElement.src = CONF.bgImage;
-            bgElement.onerror = () => console.warn("Fond introuvable");
-
-            // 2. Charger l'image du puzzle
-            imgObj = new Image();
-            imgObj.src = CONF.imgPuzzle;
-            imgObj.onload = () => {
-                // Configurer les images de fond CSS
-                document.getElementById('guide-image').style.backgroundImage = `url('${CONF.imgPuzzle}')`;
-                document.getElementById('final-image').style.backgroundImage = `url('${CONF.imgFinal}')`;
-                
-                // Calculer la taille et lancer
-                resizeBoard();
-                createPieces();
-                scramble();
-                
-                // Écouter le redimensionnement (rotation écran)
-                window.addEventListener('resize', () => {
-                    resizeBoard();
-                    // On ne remélange pas, mais on pourrait vouloir repositionner les pièces hors cadre
-                });
-            };
-        }
-
-        // --- CŒUR DU SYSTÈME RESPONSIVE ---
-        function resizeBoard() {
-            if (!imgObj) return;
-
-            // Dimensions de l'image originale
-            const naturalW = imgObj.width;
-            const naturalH = imgObj.height;
-            const imageRatio = naturalW / naturalH;
-
-            // Espace disponible dans le wrapper (tient compte du header et footer visuels)
-            // On prend 90% de la largeur et 80% de la hauteur dispo pour laisser de l'air
-            const availW = wrapper.clientWidth * 0.95;
-            const availH = wrapper.clientHeight * 0.90;
-
-            let finalW, finalH;
-
-            // Algorithme "contain" : faire rentrer le rectangle image dans le rectangle écran
-            if (availW / imageRatio < availH) {
-                // Limité par la largeur
-                finalW = availW;
-                finalH = availW / imageRatio;
-            } else {
-                // Limité par la hauteur
-                finalH = availH;
-                finalW = availH * imageRatio;
-            }
-
-            // Appliquer les dimensions exactes en pixels
-            board.style.width = finalW + 'px';
-            board.style.height = finalH + 'px';
-            
-            // Mettre à jour la taille des pièces existantes (si resize en cours de jeu)
-            updatePiecesSize(finalW, finalH);
-        }
-
-        // --- CRÉATION DES PIÈCES ---
-        function createPieces() {
-            board.innerHTML = ''; // Reset
-            board.appendChild(document.getElementById('guide-image'));
-            board.appendChild(document.getElementById('final-image'));
-            
-            pieces = [];
-            const shapes = generateShapes(); // Générer les formes (trous/bosses)
-
-            const wPerPiece = imgObj.width / CONF.cols;
-            const hPerPiece = imgObj.height / CONF.rows;
-            const tabPx = Math.min(wPerPiece, hPerPiece) * CONF.tabSize;
-
-            for (let r = 0; r < CONF.rows; r++) {
-                for (let c = 0; c < CONF.cols; c++) {
-                    const canvas = document.createElement('canvas');
-                    canvas.className = 'piece';
-                    
-                    // --- HAUTE RÉSOLUTION (RETINA) ---
-                    // On calcule la taille physique nécessaire pour inclure les oreilles
-                    const rawW = wPerPiece + tabPx * 2;
-                    const rawH = hPerPiece + tabPx * 2;
-                    
-                    // Canvas size (tampon interne)
-                    canvas.width = rawW;
-                    canvas.height = rawH;
-                    
-                    const ctx = canvas.getContext('2d');
-                    
-                    // Dessiner la forme
-                    ctx.save();
-                    drawPuzzleShape(ctx, tabPx, tabPx, wPerPiece, hPerPiece, tabPx, shapes[r*CONF.cols + c]);
-                    ctx.clip();
-                    
-                    // Dessiner l'image
-                    ctx.drawImage(imgObj, 
-                        c * wPerPiece - tabPx, r * hPerPiece - tabPx, // Source X, Y
-                        rawW, rawH, // Source W, H
-                        0, 0, rawW, rawH // Dest X, Y, W, H
-                    );
-                    ctx.restore();
-
-                    // Contour léger
-                    ctx.save();
-                    drawPuzzleShape(ctx, tabPx, tabPx, wPerPiece, hPerPiece, tabPx, shapes[r*CONF.cols + c]);
-                    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2; ctx.stroke();
-                    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1; ctx.stroke();
-                    ctx.restore();
-
-                    // --- STOCKAGE DES DONNÉES LOGIQUES ---
-                    // On stocke la position cible en POURCENTAGE (indépendant des pixels)
-                    canvas.dataset.targetLeftPct = ((c * wPerPiece - tabPx) / imgObj.width) * 100;
-                    canvas.dataset.targetTopPct = ((r * hPerPiece - tabPx) / imgObj.height) * 100;
-                    
-                    // On stocke la largeur/hauteur en % pour le CSS
-                    canvas.dataset.widthPct = (rawW / imgObj.width) * 100;
-                    
-                    // Attacher les événements
-                    addInteraction(canvas);
-                    
-                    board.appendChild(canvas);
-                    pieces.push(canvas);
-                }
-            }
-            // Appliquer la taille initiale
-            updatePiecesSize(board.clientWidth, board.clientHeight);
-        }
-
-        // --- MISE À JOUR VISUELLE (RESIZE) ---
-        function updatePiecesSize(boardW, boardH) {
-            pieces.forEach(p => {
-                // La largeur est relative au conteneur
-                p.style.width = p.dataset.widthPct + '%';
-                p.style.height = 'auto'; // Garde le ratio
-
-                // Si la pièce est verrouillée, on s'assure qu'elle reste bien placée
-                if (p.classList.contains('locked')) {
-                    p.style.left = p.dataset.targetLeftPct + '%';
-                    p.style.top = p.dataset.targetTopPct + '%';
-                }
-            });
-        }
-
-        // --- GÉNÉRATION DES FORMES ---
-        function generateShapes() {
-            const s = [];
-            for(let r=0; r<CONF.rows; r++) {
-                for(let c=0; c<CONF.cols; c++) {
+        function generatePerfectShapes(rows, cols) {
+            const shapes = [];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
                     let top = 0, right = 0, bottom = 0, left = 0;
-                    if(r > 0) top = -s[(r-1)*CONF.cols+c][2];
-                    if(c < CONF.cols-1) right = Math.random() > 0.5 ? 1 : -1;
-                    if(r < CONF.rows-1) bottom = Math.random() > 0.5 ? 1 : -1;
-                    if(c > 0) left = -s[r*CONF.cols + (c-1)][1];
-                    s.push([top, right, bottom, left]);
+                    if (r > 0) top = -shapes[(r - 1) * cols + c][2];
+                    if (c < cols - 1) right = Math.random() > 0.5 ? 1 : -1;
+                    if (r < rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
+                    if (c > 0) left = -shapes[r * cols + (c - 1)][1];
+                    shapes.push([top, right, bottom, left]);
                 }
             }
-            return s;
+            return shapes;
         }
 
-        function drawPuzzleShape(ctx, x, y, w, h, t, s) {
+        const imgPieces = new Image();
+        imgPieces.src = CONFIG.piecesSrc;
+        
+        imgPieces.onload = () => {
+            const ratio = imgPieces.width / imgPieces.height;
+            container.style.aspectRatio = `${ratio}`;
+            guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
+            finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
+            initPuzzle();
+        };
+
+        imgPieces.onerror = () => {
+            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
+        };
+
+        function initPuzzle() {
+            const basePieceW = imgPieces.width / CONFIG.cols;
+            const basePieceH = imgPieces.height / CONFIG.rows;
+            const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
+
+            const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
+
+            for (let r = 0; r < CONFIG.rows; r++) {
+                for (let c = 0; c < CONFIG.cols; c++) {
+                    const shapeIndex = r * CONFIG.cols + c;
+                    createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, generatedShapes[shapeIndex]);
+                }
+            }
+            scramblePieces();
+        }
+
+        function createCanvasPiece(row, col, w, h, tabSize, shape) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const totalW = w + tabSize * 2;
+            const totalH = h + tabSize * 2;
+            
+            canvas.width = totalW;
+            canvas.height = totalH;
+            canvas.classList.add('piece');
+
+            ctx.save();
             ctx.beginPath();
+            const offsetX = tabSize;
+            const offsetY = tabSize;
+            let x = offsetX, y = offsetY;
             ctx.moveTo(x, y);
-            // Haut
-            s[0]!==0 ? drawTab(ctx, x, y, w, 0, s[0]*t) : ctx.lineTo(x+w, y);
-            // Droite
-            x+=w; s[1]!==0 ? drawTab(ctx, x, y, 0, h, s[1]*t) : ctx.lineTo(x, y+h);
-            // Bas
-            y+=h; s[2]!==0 ? drawTab(ctx, x, y, -w, 0, s[2]*t) : ctx.lineTo(x-w, y);
-            // Gauche
-            x-=w; s[3]!==0 ? drawTab(ctx, x, y, 0, -h, s[3]*t) : ctx.lineTo(x, y-h);
+
+            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y); 
+            x += w;
+            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h); 
+            y += h;
+            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y); 
+            x -= w;
+            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h); 
+
             ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(imgPieces, col * w - offsetX, row * h - offsetY, totalW, totalH, 0, 0, totalW, totalH);
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.restore();
+
+            canvas.style.width = `${(totalW / (imgPieces.width)) * 100}%`;
+            canvas.style.height = 'auto';
+            const pctPerPixelX = 100 / imgPieces.width;
+            const pctPerPixelY = 100 / imgPieces.height;
+            canvas.dataset.targetX = (col * w - tabSize) * pctPerPixelX;
+            canvas.dataset.targetY = (row * h - tabSize) * pctPerPixelY;
+
+            addDragListeners(canvas);
+            container.appendChild(canvas);
+            pieces.push(canvas);
         }
 
-        function drawTab(ctx, x, y, dx, dy, sz) {
-            const l = Math.sqrt(dx*dx + dy*dy), neck = l*0.35;
-            const ux = dx/l, uy = dy/l, nx = -uy, ny = ux;
-            const x1 = x + ux*(l-neck)/2, y1 = y + uy*(l-neck)/2;
-            const x2 = x + ux*(l+neck)/2, y2 = y + uy*(l+neck)/2;
-            const h = Math.abs(sz), s = sz>0 ? 1 : -1;
-            
+        function drawTab(ctx, x, y, dx, dy, size) {
+            const l = Math.sqrt(dx*dx + dy*dy), neck = l * 0.35;
+            const ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
+            const x1 = x + ux * (l - neck)/2, y1 = y + uy * (l - neck)/2;
+            const x2 = x + ux * (l + neck)/2, y2 = y + uy * (l + neck)/2;
             ctx.lineTo(x1, y1);
-            ctx.bezierCurveTo(x1+nx*s*h*0.2, y1+ny*s*h*0.2, x+ux*(l/2-neck/2)+nx*s*h, y+uy*(l/2-neck/2)+ny*s*h, x+ux*l/2+nx*s*h, y+uy*l/2+ny*s*h);
-            ctx.bezierCurveTo(x+ux*(l/2+neck/2)+nx*s*h, y+uy*(l/2+neck/2)+ny*s*h, x2+nx*s*h*0.2, y2+ny*s*h*0.2, x2, y2);
-            ctx.lineTo(x+dx, y+dy);
+            const h = Math.abs(size), sign = size > 0 ? 1 : -1;
+            const cx1 = x1 + nx * sign * h * 0.2, cy1 = y1 + ny * sign * h * 0.2;
+            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h, ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
+            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h, ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
+            const cx2 = x2 + nx * sign * h * 0.2, cy2 = y2 + ny * sign * h * 0.2;
+            ctx.bezierCurveTo(cx1, cy1, tx1, ty1, x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h);
+            ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
+            ctx.lineTo(x + dx, y + dy);
         }
 
-        // --- MÉLANGE (SCATTER) ---
-        function scramble() {
-            // On mélange en pixels RELATIFS au conteneur du puzzle
-            // C'est la seule façon d'être sûr qu'elles sont "autour"
+        // --- NOUVELLE FONCTION DE MÉLANGE INTELLIGENTE ---
+        function scramblePieces() {
+            const containerRect = container.getBoundingClientRect();
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            // Breakpoint pour mobile un peu plus large
+            const isMobile = winW < 768; 
             
-            // On définit une zone "Autour du puzzle" qui déborde du board
-            // Comme le wrapper a overflow: hidden, on reste dans l'écran
-            const margin = 50; 
-            const boundsW = wrapper.clientWidth - margin * 2;
-            const boundsH = wrapper.clientHeight - margin * 2;
-            
-            // On doit calculer le décalage (offset) du board par rapport au wrapper
-            const boardRect = board.getBoundingClientRect();
-            const wrapRect = wrapper.getBoundingClientRect();
-            const offsetLeft = boardRect.left - wrapRect.left;
-            const offsetTop = boardRect.top - wrapRect.top;
+            // Hauteur de l'UI en haut pour éviter de cacher des pièces sous le titre
+            const headerHeight = document.getElementById('game-ui').offsetHeight + 20;
 
-            pieces.forEach(p => {
-                // Position aléatoire dans tout le wrapper
-                const randX = Math.random() * boundsW; 
-                const randY = Math.random() * boundsH;
+            pieces.forEach(piece => {
+                if(piece.classList.contains('locked')) return;
                 
-                // On applique en position relative au BOARD
-                // Donc si je veux être à gauche du board, j'ai une position négative
-                p.style.left = (randX - offsetLeft) + 'px';
-                p.style.top = (randY - offsetTop) + 'px';
+                const pW = piece.offsetWidth || 100;
+                const pH = piece.offsetHeight || 100;
+                
+                // Marge de sécurité pour ne pas coller aux bords de l'écran
+                const safeMargin = 15;
+                
+                let minX, maxX, minY, maxY;
+
+                if (isMobile) {
+                    // SUR MOBILE :
+                    // On maximise l'espace disponible.
+                    // On accepte que les pièces tombent SUR le puzzle au début
+                    // car sinon elles sortent de l'écran.
+                    minX = safeMargin;
+                    maxX = winW - pW - safeMargin;
+                    
+                    // On ne va pas plus haut que le titre
+                    minY = headerHeight;
+                    // On laisse un peu de place en bas si possible
+                    maxY = winH - pH - safeMargin;
+                } else {
+                    // SUR DESKTOP :
+                    // On essaie de mettre les pièces sur les côtés du puzzle
+                    const side = Math.random() > 0.5 ? 'left' : 'right';
+                    
+                    if (side === 'left') {
+                        minX = safeMargin;
+                        maxX = containerRect.left - pW - safeMargin;
+                        minY = headerHeight;
+                        maxY = winH - pH - safeMargin;
+                    } else {
+                        minX = containerRect.right + safeMargin;
+                        maxX = winW - pW - safeMargin;
+                        minY = headerHeight;
+                        maxY = winH - pH - safeMargin;
+                    }
+                    
+                    // Sécurité : si l'écran desktop est bizarrement petit (fenêtre réduite),
+                    // on utilise tout l'espace comme sur mobile.
+                    if (maxX < minX) {
+                        minX = safeMargin;
+                        maxX = winW - pW - safeMargin;
+                    }
+                }
+                
+                // Garde-fous ultimes pour ne jamais sortir de la fenêtre
+                if (maxX < minX) maxX = minX;
+                if (maxY < minY) maxY = minY;
+                
+                const pageX = minX + Math.random() * (maxX - minX);
+                const pageY = minY + Math.random() * (maxY - minY);
+
+                // Conversion vers le repère relatif du container
+                // Le container a position: relative, donc top/left sont par rapport à lui
+                piece.style.left = `${pageX - containerRect.left}px`;
+                piece.style.top = `${pageY - containerRect.top}px`;
             });
         }
 
-        // --- INTERACTION (UNIFIÉE) ---
-        function addInteraction(el) {
-            let startX, startY, initialLeft, initialTop;
+        function addDragListeners(el) {
+            let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
             
-            const onDown = (e) => {
-                if(el.classList.contains('locked') || document.body.classList.contains('finished')) return;
-                e.preventDefault(); // Stop scroll
+            const onStart = (e) => {
+                if (el.classList.contains('locked')) return; 
                 
+                // Empêcher le comportement par défaut (scroll) seulement sur la pièce
+                if (e.cancelable && e.type === 'touchstart') e.preventDefault();
+                
+                isDragging = true;
                 el.classList.add('dragging');
-                
-                // Normaliser Touch/Mouse
-                const ptr = e.touches ? e.touches[0] : e;
-                startX = ptr.clientX;
-                startY = ptr.clientY;
-                
-                // On lit les valeurs calculées actuelles (en pixels)
-                initialLeft = parseFloat(el.style.left) || 0; // Attention : peut être en % parfois, mais scramble met des px
-                // Si c'est en %, on convertit en px pour le drag
-                if(el.style.left.includes('%')) {
-                    initialLeft = (parseFloat(el.style.left)/100) * board.clientWidth;
-                    initialTop = (parseFloat(el.style.top)/100) * board.clientHeight;
-                } else {
-                    initialLeft = parseFloat(el.style.left);
-                    initialTop = parseFloat(el.style.top);
-                }
-                
-                // Mettre au premier plan
-                el.style.zIndex = 1000;
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+                startX = clientX; startY = clientY;
+                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
             };
-
+            
             const onMove = (e) => {
-                if(!el.classList.contains('dragging')) return;
-                e.preventDefault();
+                if (!isDragging) return;
                 
-                const ptr = e.touches ? e.touches[0] : e;
-                const dx = ptr.clientX - startX;
-                const dy = ptr.clientY - startY;
+                // Empêche le scroll page pendant qu'on traîne une pièce
+                e.preventDefault(); 
                 
-                el.style.left = (initialLeft + dx) + 'px';
-                el.style.top = (initialTop + dy) + 'px';
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+                el.style.left = `${initialLeft + (clientX - startX)}px`;
+                el.style.top = `${initialTop + (clientY - startY)}px`;
             };
-
-            const onUp = () => {
-                if(!el.classList.contains('dragging')) return;
+            
+            const onEnd = () => {
+                if (!isDragging) return;
+                isDragging = false;
                 el.classList.remove('dragging');
-                el.style.zIndex = '';
                 checkSnap(el);
             };
 
-            el.addEventListener('mousedown', onDown);
-            el.addEventListener('touchstart', onDown, {passive: false});
+            // Options {passive: false} obligatoires pour pouvoir preventDefault le scroll
+            el.addEventListener('mousedown', onStart); 
+            el.addEventListener('touchstart', onStart, {passive:false});
             
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('touchmove', onMove, {passive: false});
+            window.addEventListener('mousemove', onMove); 
+            window.addEventListener('touchmove', onMove, {passive:false});
             
-            window.addEventListener('mouseup', onUp);
-            window.addEventListener('touchend', onUp);
+            window.addEventListener('mouseup', onEnd); 
+            window.addEventListener('touchend', onEnd);
         }
 
-        // --- VÉRIFICATION (SNAP) ---
         function checkSnap(el) {
-            // Position actuelle en px (relative au board)
-            const curLeft = parseFloat(el.style.left);
-            const curTop = parseFloat(el.style.top);
+            const containerW = container.offsetWidth;
+            const containerH = container.offsetHeight;
+            const currentX = (el.offsetLeft / containerW) * 100;
+            const currentY = (el.offsetTop / containerH) * 100;
+            const targetX = parseFloat(el.dataset.targetX);
+            const targetY = parseFloat(el.dataset.targetY);
+            const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
             
-            // Position cible en px (calculée depuis les %)
-            const targetLeft = (parseFloat(el.dataset.targetLeftPct) / 100) * board.clientWidth;
-            const targetTop = (parseFloat(el.dataset.targetTopPct) / 100) * board.clientHeight;
-            
-            const dist = Math.sqrt(Math.pow(curLeft - targetLeft, 2) + Math.pow(curTop - targetTop, 2));
+            const isMobile = window.innerWidth < 768;
+            // Seuil généreux sur mobile
+            const threshold = isMobile ? 20 : 8;
 
-            if(dist < CONF.snapDist) {
-                // Snap !
-                el.style.left = el.dataset.targetLeftPct + '%';
-                el.style.top = el.dataset.targetTopPct + '%';
-                el.classList.add('locked');
-                lockedCount++;
-                if(lockedCount === pieces.length) victory();
+            if (dist < threshold) {
+                snapPiece(el, targetX, targetY);
             }
         }
 
-        // --- VICTOIRE ---
-        function victory() {
-            document.body.classList.add('finished');
-            document.getElementById('title-text').style.opacity = 0;
-            document.getElementById('win-modal').classList.add('show');
-            
-            // Confettis
-            const duration = 3000;
-            const end = Date.now() + duration;
-            (function frame() {
-                confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 } });
-                confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 } });
-                if (Date.now() < end) requestAnimationFrame(frame);
-            }());
+        function snapPiece(el, x, y) {
+            el.style.left = `${x}%`;
+            el.style.top = `${y}%`;
+            el.classList.add('locked');
+            lockedCount++;
+            if (lockedCount === totalPieces) onWin();
         }
 
-        // --- LANCEMENT ---
-        init();
+        function onWin() {
+            container.classList.add('puzzle-complete');
+            instructionText.style.opacity = '0';
+            setTimeout(() => {
+                instructionText.style.display = 'none';
+                successMsg.classList.add('visible');
+                triggerConfetti();
+            }, 500);
+        }
 
+        function triggerConfetti() {
+            var count = 200;
+            var defaults = { origin: { y: 1 }, zIndex: 9999 };
+            function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
+            fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.1, { spread: 120, startVelocity: 45, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+        }
     </script>
 </body>
 </html>
