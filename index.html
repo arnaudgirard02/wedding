@@ -201,7 +201,6 @@
             background-color: transparent;
         }
 
-        /* Loading indicator en cas de connexion lente */
         #loading {
             position: absolute;
             top: 50%; left: 50%;
@@ -241,9 +240,8 @@
             rows: 3,
             cols: 4,
             snapThresholdPercent: 12,
-            tabSizeFactor: 0.22,
-            // Plafond de résolution pour éviter le crash mémoire sur mobile
-            // 1600px est largement suffisant pour du Retina sur un téléphone
+            // J'ai augmenté légèrement la taille (0.24) pour compenser la rondeur
+            tabSizeFactor: 0.24, 
             maxSafeWidth: 1600 
         };
 
@@ -287,19 +285,15 @@
         }
 
         const imgPieces = new Image();
-        imgPieces.crossOrigin = "Anonymous"; // Utile si hébergé ailleurs
+        imgPieces.crossOrigin = "Anonymous"; 
         imgPieces.src = CONFIG.piecesSrc;
         
         imgPieces.onload = () => {
             try {
-                // On cache le chargement
                 loadingMsg.style.display = 'none';
-
-                // Gestion de la résolution "Safe HD"
                 let workingWidth = imgPieces.naturalWidth;
                 let workingHeight = imgPieces.naturalHeight;
                 
-                // Si l'image est énorme, on calcule un ratio de réduction
                 if (workingWidth > CONFIG.maxSafeWidth) {
                     const scale = CONFIG.maxSafeWidth / workingWidth;
                     workingWidth = CONFIG.maxSafeWidth;
@@ -313,12 +307,12 @@
                 
                 initPuzzle(workingWidth, workingHeight);
             } catch (e) {
-                alert("Oups, une erreur est survenue lors de l'initialisation du jeu : " + e.message);
+                alert("Oups, une erreur est survenue : " + e.message);
             }
         };
 
         imgPieces.onerror = () => {
-            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée. Vérifiez qu'elle est bien dans le même dossier.");
+            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
         };
 
         function initPuzzle(totalW, totalH) {
@@ -340,7 +334,6 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Dimensions avec marges de sécurité pour les oreilles
             const canvasW = Math.floor(w + tabSize * 2);
             const canvasH = Math.floor(h + tabSize * 2);
             
@@ -371,38 +364,23 @@
             ctx.save();
             ctx.clip();
 
-            // CALCUL SÉCURISÉ DES COORDONNÉES IMAGE
-            // On veut prélever (col * w) - tabSize.
-            // Mais attention, si col=0, cela donne un chiffre négatif.
-            // Certains navigateurs mobiles n'aiment pas les coords négatives dans drawImage.
-            
-            // Échelle réelle entre l'image source (peut-être 4000px) et notre largeur de travail (max 1600px)
             const scaleX = imgPieces.naturalWidth / totalImgW;
             const scaleY = imgPieces.naturalHeight / totalImgH;
 
-            // Zone théorique à prélever dans l'image SOURCE ORIGINALE
             let sx = ((col * w) - tabSize) * scaleX;
             let sy = ((row * h) - tabSize) * scaleY;
             let sWidth = canvasW * scaleX;
             let sHeight = canvasH * scaleY;
-
-            // Zone de destination dans le canvas
             let dx = 0;
             let dy = 0;
             let dWidth = canvasW;
             let dHeight = canvasH;
 
-            // --- CLAMPING (SÉCURITÉ MOBILE) ---
-            // Si on demande des pixels à gauche de l'image (sx < 0), on décale d'autant
             if (sx < 0) {
-                const offset = -sx; // Positive
-                // On réduit la largeur source
+                const offset = -sx; 
                 sWidth -= offset;
-                // On commence à lire à 0
                 sx = 0;
-                // On décale le dessin destination vers la droite (divisé par l'échelle)
                 dx += (offset / scaleX);
-                // On réduit la largeur destination
                 dWidth -= (offset / scaleX);
             }
             if (sy < 0) {
@@ -413,23 +391,19 @@
                 dHeight -= (offset / scaleY);
             }
 
-            // On dessine uniquement si dimensions valides
             if (sWidth > 0 && sHeight > 0) {
                 ctx.drawImage(imgPieces, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
             }
             
             ctx.restore();
 
-            // Bordures
             ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 2; ctx.stroke();
             ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
 
-            // CSS Sizing
             const widthPercent = (canvasW / totalImgW) * 100;
             canvas.style.width = `${widthPercent}%`;
             canvas.style.height = 'auto'; 
             
-            // Targets
             const pctPerPixelX = 100 / totalImgW;
             const pctPerPixelY = 100 / totalImgH;
             
@@ -441,6 +415,7 @@
             pieces.push(canvas);
         }
 
+        // --- NOUVELLE FONCTION DE COURBE (Arrondie) ---
         function drawCurve(ctx, x1, y1, x2, y2, size) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
@@ -449,7 +424,9 @@
             const uy = (y2 - y1) / dist;
             const nx = -uy;
             const ny = ux;
-            const baseW = 0.2; 
+            
+            // On réduit la largeur de la base pour un cou plus fin
+            const baseW = 0.20; 
             
             const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
             const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
@@ -459,16 +436,28 @@
             const yTip = cy + ny * size;
 
             ctx.lineTo(xBase1, yBase1);
+
+            // J'ai augmenté les facteurs de contrôle (0.3 au lieu de 0.2 et 0.2 au lieu de 0.1)
+            // Cela donne une courbe plus ample, plus "gonflée", donc plus ronde.
+            
+            // Courbe Montante
             ctx.bezierCurveTo(
-                xBase1 + ux * dist * 0.05 + nx * size * 0.2, yBase1 + uy * dist * 0.05 + ny * size * 0.2,
-                xTip - ux * dist * 0.1, yTip - uy * dist * 0.1,
+                xBase1 + ux * dist * 0.05 + nx * size * 0.35, 
+                yBase1 + uy * dist * 0.05 + ny * size * 0.35,
+                xTip - ux * dist * 0.15, 
+                yTip - uy * dist * 0.15,
                 xTip, yTip
             );
+
+            // Courbe Descendante
             ctx.bezierCurveTo(
-                xTip + ux * dist * 0.1, yTip + uy * dist * 0.1,
-                xBase2 - ux * dist * 0.05 + nx * size * 0.2, yBase2 - uy * dist * 0.05 + ny * size * 0.2,
+                xTip + ux * dist * 0.15, 
+                yTip + uy * dist * 0.15,
+                xBase2 - ux * dist * 0.05 + nx * size * 0.35, 
+                yBase2 - uy * dist * 0.05 + ny * size * 0.35,
                 xBase2, yBase2
             );
+
             ctx.lineTo(x2, y2);
         }
 
@@ -567,7 +556,6 @@
             const targetX = parseFloat(el.dataset.targetX);
             const targetY = parseFloat(el.dataset.targetY);
             const dist = Math.hypot(currentX - targetX, currentY - targetY);
-            
             const isMobile = window.innerWidth < 768;
             const threshold = isMobile ? 8 : 4; 
 
