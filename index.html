@@ -83,13 +83,11 @@
             z-index: 50; 
             width: 92vw;
             max-width: 600px;
-            /* Ratio géré par JS */
             background-color: transparent;
             margin-bottom: 120px; 
-            touch-action: none; /* Indispensable pour éviter le scroll quand on joue */
+            touch-action: none; 
         }
 
-        /* Cadre visuel et guide */
         #puzzle-frame {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -136,8 +134,6 @@
             transition: transform 0.1s;
             touch-action: none;
             transform-origin: center center;
-            
-            /* CSS CRITIQUE : La taille est gérée en % via le JS */
             width: auto; 
             height: auto;
         }
@@ -154,4 +150,459 @@
             cursor: default;
             filter: none;
             pointer-events: none;
-            transition: top 0.2s, left 0
+            transition: top 0.2s, left 0.2s;
+        }
+
+        /* --- SUCCESS STATE --- */
+        #success-message {
+            position: fixed;
+            bottom: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 20px 25px;
+            border-radius: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+            text-align: center;
+            opacity: 0;
+            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            width: 85%;
+            max-width: 350px;
+            z-index: 1000;
+        }
+
+        #success-message.visible {
+            bottom: 40px;
+            opacity: 1;
+        }
+
+        #success-message h2 {
+            margin: 0 0 5px 0;
+            color: #2c3e50;
+            font-size: 1.3rem;
+        }
+
+        #success-message p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .puzzle-complete #final-reveal {
+            opacity: 1; 
+        }
+        
+        .puzzle-complete #puzzle-guide {
+            opacity: 0;
+        }
+        
+        .puzzle-complete #puzzle-frame {
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            background-color: transparent;
+        }
+
+        /* Loading indicator en cas de connexion lente */
+        #loading {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.9rem;
+            color: #999;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="background-container">
+        <img id="bg-img" src="" alt="">
+    </div>
+
+    <div id="game-ui">
+        <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
+    </div>
+
+    <div id="puzzle-container">
+        <div id="loading">Chargement...</div>
+        <div id="puzzle-guide"></div>
+        <div id="final-reveal"></div>
+        <div id="puzzle-frame"></div>
+    </div>
+
+    <div id="success-message">
+        <h2>Félicitations !</h2>
+        <p>Hâte de vous y voir 🥰</p>
+    </div>
+
+    <script>
+        const CONFIG = {
+            piecesSrc: 'guide.jpg',   
+            finalSrc: 'puzzle.png',   
+            rows: 3,
+            cols: 4,
+            snapThresholdPercent: 12,
+            tabSizeFactor: 0.22,
+            // Plafond de résolution pour éviter le crash mémoire sur mobile
+            // 1600px est largement suffisant pour du Retina sur un téléphone
+            maxSafeWidth: 1600 
+        };
+
+        const container = document.getElementById('puzzle-container');
+        const guide = document.getElementById('puzzle-guide');
+        const finalReveal = document.getElementById('final-reveal');
+        const instructionText = document.getElementById('instruction-text');
+        const successMsg = document.getElementById('success-message');
+        const loadingMsg = document.getElementById('loading');
+
+        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
+        const bgImgElement = document.getElementById('bg-img');
+        
+        function tryLoadBackground(index) {
+            if (index >= possibleBackgrounds.length) return;
+            const currentName = possibleBackgrounds[index];
+            const tester = new Image();
+            tester.onload = () => { bgImgElement.src = currentName; };
+            tester.onerror = () => { tryLoadBackground(index + 1); };
+            tester.src = currentName;
+        }
+        tryLoadBackground(0);
+
+        let pieces = [];
+        let lockedCount = 0;
+        const totalPieces = CONFIG.rows * CONFIG.cols;
+
+        function generatePerfectShapes(rows, cols) {
+            const shapes = [];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let top = 0, right = 0, bottom = 0, left = 0;
+                    if (r > 0) top = -shapes[(r - 1) * cols + c][2];
+                    if (c < cols - 1) right = Math.random() > 0.5 ? 1 : -1;
+                    if (r < rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
+                    if (c > 0) left = -shapes[r * cols + (c - 1)][1];
+                    shapes.push([top, right, bottom, left]);
+                }
+            }
+            return shapes;
+        }
+
+        const imgPieces = new Image();
+        imgPieces.crossOrigin = "Anonymous"; // Utile si hébergé ailleurs
+        imgPieces.src = CONFIG.piecesSrc;
+        
+        imgPieces.onload = () => {
+            try {
+                // On cache le chargement
+                loadingMsg.style.display = 'none';
+
+                // Gestion de la résolution "Safe HD"
+                let workingWidth = imgPieces.naturalWidth;
+                let workingHeight = imgPieces.naturalHeight;
+                
+                // Si l'image est énorme, on calcule un ratio de réduction
+                if (workingWidth > CONFIG.maxSafeWidth) {
+                    const scale = CONFIG.maxSafeWidth / workingWidth;
+                    workingWidth = CONFIG.maxSafeWidth;
+                    workingHeight = Math.floor(imgPieces.naturalHeight * scale);
+                }
+
+                const ratio = workingWidth / workingHeight;
+                container.style.aspectRatio = `${ratio}`;
+                guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
+                finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
+                
+                initPuzzle(workingWidth, workingHeight);
+            } catch (e) {
+                alert("Oups, une erreur est survenue lors de l'initialisation du jeu : " + e.message);
+            }
+        };
+
+        imgPieces.onerror = () => {
+            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée. Vérifiez qu'elle est bien dans le même dossier.");
+        };
+
+        function initPuzzle(totalW, totalH) {
+            const pieceW = totalW / CONFIG.cols;
+            const pieceH = totalH / CONFIG.rows;
+            const tabSize = Math.min(pieceW, pieceH) * CONFIG.tabSizeFactor;
+            const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
+
+            for (let r = 0; r < CONFIG.rows; r++) {
+                for (let c = 0; c < CONFIG.cols; c++) {
+                    const shapeIndex = r * CONFIG.cols + c;
+                    createCanvasPiece(r, c, pieceW, pieceH, tabSize, generatedShapes[shapeIndex], totalW, totalH);
+                }
+            }
+            scramblePieces();
+        }
+
+        function createCanvasPiece(row, col, w, h, tabSize, shape, totalImgW, totalImgH) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Dimensions avec marges de sécurité pour les oreilles
+            const canvasW = Math.floor(w + tabSize * 2);
+            const canvasH = Math.floor(h + tabSize * 2);
+            
+            canvas.width = canvasW;
+            canvas.height = canvasH;
+            canvas.classList.add('piece');
+
+            const startX = tabSize;
+            const startY = tabSize;
+
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+
+            if (shape[0] !== 0) drawCurve(ctx, startX, startY, startX + w, startY, shape[0] * tabSize);
+            else ctx.lineTo(startX + w, startY);
+
+            if (shape[1] !== 0) drawCurve(ctx, startX + w, startY, startX + w, startY + h, shape[1] * tabSize);
+            else ctx.lineTo(startX + w, startY + h);
+
+            if (shape[2] !== 0) drawCurve(ctx, startX + w, startY + h, startX, startY + h, shape[2] * tabSize);
+            else ctx.lineTo(startX, startY + h);
+
+            if (shape[3] !== 0) drawCurve(ctx, startX, startY + h, startX, startY, shape[3] * tabSize);
+            else ctx.lineTo(startX, startY);
+
+            ctx.closePath();
+            
+            ctx.save();
+            ctx.clip();
+
+            // CALCUL SÉCURISÉ DES COORDONNÉES IMAGE
+            // On veut prélever (col * w) - tabSize.
+            // Mais attention, si col=0, cela donne un chiffre négatif.
+            // Certains navigateurs mobiles n'aiment pas les coords négatives dans drawImage.
+            
+            // Échelle réelle entre l'image source (peut-être 4000px) et notre largeur de travail (max 1600px)
+            const scaleX = imgPieces.naturalWidth / totalImgW;
+            const scaleY = imgPieces.naturalHeight / totalImgH;
+
+            // Zone théorique à prélever dans l'image SOURCE ORIGINALE
+            let sx = ((col * w) - tabSize) * scaleX;
+            let sy = ((row * h) - tabSize) * scaleY;
+            let sWidth = canvasW * scaleX;
+            let sHeight = canvasH * scaleY;
+
+            // Zone de destination dans le canvas
+            let dx = 0;
+            let dy = 0;
+            let dWidth = canvasW;
+            let dHeight = canvasH;
+
+            // --- CLAMPING (SÉCURITÉ MOBILE) ---
+            // Si on demande des pixels à gauche de l'image (sx < 0), on décale d'autant
+            if (sx < 0) {
+                const offset = -sx; // Positive
+                // On réduit la largeur source
+                sWidth -= offset;
+                // On commence à lire à 0
+                sx = 0;
+                // On décale le dessin destination vers la droite (divisé par l'échelle)
+                dx += (offset / scaleX);
+                // On réduit la largeur destination
+                dWidth -= (offset / scaleX);
+            }
+            if (sy < 0) {
+                const offset = -sy;
+                sHeight -= offset;
+                sy = 0;
+                dy += (offset / scaleY);
+                dHeight -= (offset / scaleY);
+            }
+
+            // On dessine uniquement si dimensions valides
+            if (sWidth > 0 && sHeight > 0) {
+                ctx.drawImage(imgPieces, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
+            }
+            
+            ctx.restore();
+
+            // Bordures
+            ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
+
+            // CSS Sizing
+            const widthPercent = (canvasW / totalImgW) * 100;
+            canvas.style.width = `${widthPercent}%`;
+            canvas.style.height = 'auto'; 
+            
+            // Targets
+            const pctPerPixelX = 100 / totalImgW;
+            const pctPerPixelY = 100 / totalImgH;
+            
+            canvas.dataset.targetX = ((col * w) - tabSize) * pctPerPixelX;
+            canvas.dataset.targetY = ((row * h) - tabSize) * pctPerPixelY;
+
+            addDragListeners(canvas);
+            container.appendChild(canvas);
+            pieces.push(canvas);
+        }
+
+        function drawCurve(ctx, x1, y1, x2, y2, size) {
+            const cx = (x1 + x2) / 2;
+            const cy = (y1 + y2) / 2;
+            const dist = Math.hypot(x2 - x1, y2 - y1);
+            const ux = (x2 - x1) / dist;
+            const uy = (y2 - y1) / dist;
+            const nx = -uy;
+            const ny = ux;
+            const baseW = 0.2; 
+            
+            const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
+            const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
+            const xBase2 = x1 + ux * dist * (0.5 + baseW/2);
+            const yBase2 = y1 + uy * dist * (0.5 + baseW/2);
+            const xTip = cx + nx * size;
+            const yTip = cy + ny * size;
+
+            ctx.lineTo(xBase1, yBase1);
+            ctx.bezierCurveTo(
+                xBase1 + ux * dist * 0.05 + nx * size * 0.2, yBase1 + uy * dist * 0.05 + ny * size * 0.2,
+                xTip - ux * dist * 0.1, yTip - uy * dist * 0.1,
+                xTip, yTip
+            );
+            ctx.bezierCurveTo(
+                xTip + ux * dist * 0.1, yTip + uy * dist * 0.1,
+                xBase2 - ux * dist * 0.05 + nx * size * 0.2, yBase2 - uy * dist * 0.05 + ny * size * 0.2,
+                xBase2, yBase2
+            );
+            ctx.lineTo(x2, y2);
+        }
+
+        function scramblePieces() {
+            const containerRect = container.getBoundingClientRect();
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const isMobile = winW < 768; 
+            const headerHeight = document.getElementById('game-ui').offsetHeight + 20;
+
+            pieces.forEach(piece => {
+                if(piece.classList.contains('locked')) return;
+                
+                const rect = piece.getBoundingClientRect();
+                const pW = rect.width;
+                const pH = rect.height;
+                const safeMargin = 10;
+                
+                let minX, maxX, minY, maxY;
+
+                if (isMobile) {
+                    minX = safeMargin;
+                    maxX = winW - pW - safeMargin;
+                    minY = headerHeight;
+                    maxY = winH - pH - 80; 
+                } else {
+                    const side = Math.random() > 0.5 ? 'left' : 'right';
+                    if (side === 'left') {
+                        minX = safeMargin; maxX = containerRect.left - pW - safeMargin;
+                    } else {
+                        minX = containerRect.right + safeMargin; maxX = winW - pW - safeMargin;
+                    }
+                    minY = headerHeight; maxY = winH - pH - safeMargin;
+                    if (maxX < minX) { minX = safeMargin; maxX = winW - pW - safeMargin; }
+                }
+                
+                if (maxX < minX) maxX = minX;
+                if (maxY < minY) maxY = minY;
+                
+                const pageX = minX + Math.random() * (maxX - minX);
+                const pageY = minY + Math.random() * (maxY - minY);
+
+                piece.style.left = `${pageX - containerRect.left}px`;
+                piece.style.top = `${pageY - containerRect.top}px`;
+            });
+        }
+
+        function addDragListeners(el) {
+            let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
+            
+            const onStart = (e) => {
+                if (el.classList.contains('locked')) return; 
+                if (e.cancelable && e.type === 'touchstart') e.preventDefault();
+                
+                isDragging = true;
+                el.classList.add('dragging');
+                container.appendChild(el); 
+
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+                startX = clientX; startY = clientY;
+                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
+            };
+            
+            const onMove = (e) => {
+                if (!isDragging) return;
+                e.preventDefault(); 
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+                const dx = clientX - startX;
+                const dy = clientY - startY;
+                el.style.left = `${initialLeft + dx}px`;
+                el.style.top = `${initialTop + dy}px`;
+            };
+            
+            const onEnd = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                el.classList.remove('dragging');
+                checkSnap(el);
+            };
+
+            el.addEventListener('mousedown', onStart); 
+            el.addEventListener('touchstart', onStart, {passive:false});
+            window.addEventListener('mousemove', onMove); 
+            window.addEventListener('touchmove', onMove, {passive:false});
+            window.addEventListener('mouseup', onEnd); 
+            window.addEventListener('touchend', onEnd);
+        }
+
+        function checkSnap(el) {
+            const containerW = container.offsetWidth;
+            const containerH = container.offsetHeight;
+            const currentX = (el.offsetLeft / containerW) * 100;
+            const currentY = (el.offsetTop / containerH) * 100;
+            const targetX = parseFloat(el.dataset.targetX);
+            const targetY = parseFloat(el.dataset.targetY);
+            const dist = Math.hypot(currentX - targetX, currentY - targetY);
+            
+            const isMobile = window.innerWidth < 768;
+            const threshold = isMobile ? 8 : 4; 
+
+            if (dist < threshold) {
+                snapPiece(el, targetX, targetY);
+            }
+        }
+
+        function snapPiece(el, x, y) {
+            el.style.left = `${x}%`;
+            el.style.top = `${y}%`;
+            el.classList.add('locked');
+            lockedCount++;
+            if (navigator.vibrate) navigator.vibrate(10);
+            if (lockedCount === totalPieces) onWin();
+        }
+
+        function onWin() {
+            container.classList.add('puzzle-complete');
+            instructionText.style.opacity = '0';
+            triggerConfetti();
+            setTimeout(() => {
+                instructionText.style.display = 'none';
+                successMsg.classList.add('visible');
+            }, 500);
+        }
+
+        function triggerConfetti() {
+            var count = 200;
+            var defaults = { origin: { y: 0.85 }, zIndex: 9999 };
+            function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
+            fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+        }
+    </script>
+</body>
+</html>
