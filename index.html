@@ -81,15 +81,15 @@
         #puzzle-container {
             position: relative;
             z-index: 50; 
-            width: 92vw; /* Un peu plus large sur mobile */
+            width: 92vw;
             max-width: 600px;
-            /* L'aspect ratio sera défini par le JS */
+            /* Aspect ratio géré par JS */
             background-color: #ffffff; 
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: box-shadow 0.3s;
             margin-bottom: 120px; 
-            touch-action: none; /* Bloque le scroll uniquement sur le puzzle */
+            touch-action: none;
         }
 
         #puzzle-guide {
@@ -99,7 +99,7 @@
             width: 100%;
             height: 100%;
             background-size: 100% 100%;
-            opacity: 0.15; /* Plus discret pour mieux voir les pièces */
+            opacity: 0.15;
             border: 1px dashed #ccc;
             border-radius: 8px;
             z-index: 0;
@@ -124,25 +124,24 @@
             position: absolute;
             cursor: grab;
             z-index: 60;
-            /* Ombre légère pour détacher la pièce */
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+            /* Ombre plus subtile pour éviter l'effet "gros contours" */
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
             transition: transform 0.1s;
             touch-action: none;
-            /* Important pour la netteté sur mobile */
             transform-origin: center center;
         }
 
         .piece.dragging {
             z-index: 999;
             cursor: grabbing;
-            transform: scale(1.05); /* Zoom léger */
+            transform: scale(1.05);
             filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3));
         }
 
         .piece.locked {
             z-index: 40;
             cursor: default;
-            filter: none; /* On retire l'ombre une fois posée pour l'effet 'plat' */
+            filter: none; /* On retire l'ombre pour que ça s'aplatisse parfaitement */
             pointer-events: none;
             transition: top 0.2s, left 0.2s;
         }
@@ -224,9 +223,9 @@
             rows: 3,
             cols: 4,
             snapThreshold: 0.15,
-            // RÉDUIT À 12% : Les "oreilles" seront plus petites, 
-            // ce qui évite de déformer les visages à la découpe.
-            tabSizePercent: 12 
+            // On garde une taille raisonnable pour les oreilles
+            // Ni trop grosses (distorsion), ni trop petites (moches)
+            tabSizePercent: 15 
         };
 
         const container = document.getElementById('puzzle-container');
@@ -285,6 +284,7 @@
         function initPuzzle() {
             const basePieceW = imgPieces.width / CONFIG.cols;
             const basePieceH = imgPieces.height / CONFIG.rows;
+            // Calcul de la taille de l'oreille
             const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
 
             const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
@@ -302,56 +302,84 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // --- CORRECTION RETINA / HD ---
-            // On récupère le ratio de pixel de l'écran (2 ou 3 sur iPhone)
+            // --- GESTION HD / RETINA ---
             const dpr = window.devicePixelRatio || 1;
             
             const totalW = w + tabSize * 2;
             const totalH = h + tabSize * 2;
             
-            // On définit la taille RÉELLE du canvas en multipliant par le ratio
             canvas.width = totalW * dpr;
             canvas.height = totalH * dpr;
             
-            // On applique une mise à l'échelle au contexte pour que le dessin suive
             ctx.scale(dpr, dpr);
-            
             canvas.classList.add('piece');
 
-            ctx.save();
+            // --- DESSIN DU CHEMIN (PATH) ---
             ctx.beginPath();
             
-            // Attention : les coordonnées de dessin restent "logiques" (non multipliées par dpr grâce au scale)
+            // Décalage pour centrer la pièce dans le canvas (à cause des oreilles qui dépassent)
             const offsetX = tabSize;
             const offsetY = tabSize;
             let x = offsetX, y = offsetY;
+
+            // Coin haut gauche
             ctx.moveTo(x, y);
 
-            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y); 
+            // Haut
+            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); 
+            else ctx.lineTo(x + w, y); 
+            
             x += w;
-            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h); 
+            
+            // Droite
+            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); 
+            else ctx.lineTo(x, y + h); 
+            
             y += h;
-            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y); 
+            
+            // Bas
+            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); 
+            else ctx.lineTo(x - w, y); 
+            
             x -= w;
-            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h); 
+            
+            // Gauche
+            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); 
+            else ctx.lineTo(x, y - h); 
 
             ctx.closePath();
+            
+            // --- DÉCOUPE ---
+            ctx.save();
             ctx.clip();
             
-            // Dessin de l'image
-            ctx.drawImage(imgPieces, col * w - offsetX, row * h - offsetY, totalW, totalH, 0, 0, totalW, totalH);
+            // --- DESSIN DE L'IMAGE ---
+            // On dessine l'image source.
+            // sX, sY : coordonnées dans l'image source
+            // sW, sH : largeur/hauteur à prendre dans la source
+            // dX, dY : où dessiner dans le canvas
+            // dW, dH : taille dans le canvas
             
-            // Bordure plus fine et subtile
-            ctx.strokeStyle = 'rgba(255,255,255,0.6)'; 
-            ctx.lineWidth = 1.5; 
-            ctx.stroke();
+            const srcX = col * w - tabSize;
+            const srcY = row * h - tabSize;
             
+            ctx.drawImage(
+                imgPieces, 
+                srcX, srcY, totalW, totalH, // Source
+                0, 0, totalW, totalH        // Destination
+            );
             ctx.restore();
 
-            // --- TAILLE D'AFFICHAGE CSS ---
-            // C'est ici qu'on force l'affichage à la bonne taille écran, indépendamment des pixels réels
+            // --- CONTOUR SUBTIL (OPTIONNEL) ---
+            // Un trait très fin et très transparent pour définir la forme
+            // sans créer de gros écart.
+            ctx.strokeWidth = 1;
+            ctx.strokeStyle = "rgba(0,0,0,0.15)";
+            ctx.stroke();
+
+            // --- MISE À L'ÉCHELLE CSS ---
             canvas.style.width = `${(totalW / imgPieces.width) * 100}%`;
-            canvas.style.height = 'auto'; // Garde le ratio correct
+            canvas.style.height = 'auto'; 
             
             const pctPerPixelX = 100 / imgPieces.width;
             const pctPerPixelY = 100 / imgPieces.height;
@@ -363,19 +391,54 @@
             pieces.push(canvas);
         }
 
+        // --- NOUVELLE FONCTION DE DESSIN DES OREILLES (Plus symétrique) ---
         function drawTab(ctx, x, y, dx, dy, size) {
-            const l = Math.sqrt(dx*dx + dy*dy), neck = l * 0.35;
-            const ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
-            const x1 = x + ux * (l - neck)/2, y1 = y + uy * (l - neck)/2;
-            const x2 = x + ux * (l + neck)/2, y2 = y + uy * (l + neck)/2;
+            // dx, dy définissent le vecteur du coté (ex: 100, 0 pour le haut)
+            // size définit la taille de l'oreille (positif = sortante, négatif = rentrante)
+            
+            const l = Math.sqrt(dx*dx + dy*dy); // Longueur du côté
+            const absSize = Math.abs(size);
+            const sign = size > 0 ? 1 : -1;
+            
+            // Vecteurs unitaires
+            const ux = dx / l;
+            const uy = dy / l;
+            // Vecteur perpendiculaire (normale)
+            const nx = -uy;
+            const ny = ux;
+
+            // Points clés de la courbe (forme standard de puzzle)
+            // Base de l'oreille (le cou)
+            const x1 = x + ux * (l * 0.35); 
+            const y1 = y + uy * (l * 0.35);
+            
+            const x2 = x + ux * (l * 0.65);
+            const y2 = y + uy * (l * 0.65);
+
+            // Pointe de l'oreille
+            const tipX = x + ux * (l * 0.5) + nx * sign * absSize;
+            const tipY = y + uy * (l * 0.5) + ny * sign * absSize;
+
+            // Points de contrôle pour les courbes de Bézier
+            // Base gauche
+            const cp1x = x1 + ux * (l * 0.05) + nx * sign * (absSize * 0.3);
+            const cp1y = y1 + uy * (l * 0.05) + ny * sign * (absSize * 0.3);
+
+            // Pointe gauche
+            const cp2x = tipX - ux * (l * 0.1) - nx * sign * (absSize * 0.1);
+            const cp2y = tipY - uy * (l * 0.1) - ny * sign * (absSize * 0.1);
+            
+            // Pointe droite
+            const cp3x = tipX + ux * (l * 0.1) - nx * sign * (absSize * 0.1);
+            const cp3y = tipY + uy * (l * 0.1) - ny * sign * (absSize * 0.1);
+
+            // Base droite
+            const cp4x = x2 - ux * (l * 0.05) + nx * sign * (absSize * 0.3);
+            const cp4y = y2 - uy * (l * 0.05) + ny * sign * (absSize * 0.3);
+
             ctx.lineTo(x1, y1);
-            const h = Math.abs(size), sign = size > 0 ? 1 : -1;
-            const cx1 = x1 + nx * sign * h * 0.2, cy1 = y1 + ny * sign * h * 0.2;
-            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h, ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
-            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h, ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
-            const cx2 = x2 + nx * sign * h * 0.2, cy2 = y2 + ny * sign * h * 0.2;
-            ctx.bezierCurveTo(cx1, cy1, tx1, ty1, x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h);
-            ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, tipX, tipY);
+            ctx.bezierCurveTo(cp3x, cp3y, cp4x, cp4y, x2, y2);
             ctx.lineTo(x + dx, y + dy);
         }
 
@@ -384,28 +447,21 @@
             const winW = window.innerWidth;
             const winH = window.innerHeight;
             const isMobile = winW < 768; 
-            
             const headerHeight = document.getElementById('game-ui').offsetHeight + 20;
 
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
                 
-                // Calcul taille affichée
                 const rect = piece.getBoundingClientRect();
                 const pW = rect.width;
                 const pH = rect.height;
-                
                 const safeMargin = 10;
                 
                 let minX, maxX, minY, maxY;
 
                 if (isMobile) {
-                    // Mobile : on utilise toute la largeur disponible
                     minX = safeMargin;
                     maxX = winW - pW - safeMargin;
-                    
-                    // On place en dessous du header, et on permet de dépasser un peu sur le puzzle
-                    // pour éviter que tout s'entasse si l'écran est petit
                     minY = headerHeight;
                     maxY = winH - pH - safeMargin;
                 } else {
@@ -416,10 +472,7 @@
                         minX = containerRect.right + safeMargin; maxX = winW - pW - safeMargin;
                     }
                     minY = headerHeight; maxY = winH - pH - safeMargin;
-                    
-                    if (maxX < minX) { // Fallback si pas de place
-                        minX = safeMargin; maxX = winW - pW - safeMargin;
-                    }
+                    if (maxX < minX) { minX = safeMargin; maxX = winW - pW - safeMargin; }
                 }
                 
                 if (maxX < minX) maxX = minX;
@@ -442,7 +495,6 @@
                 
                 isDragging = true;
                 el.classList.add('dragging');
-                // On met l'élément à la fin du DOM pour qu'il soit visuellement au dessus de tout
                 container.appendChild(el); 
 
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
@@ -483,10 +535,7 @@
             const targetX = parseFloat(el.dataset.targetX);
             const targetY = parseFloat(el.dataset.targetY);
             
-            // Distance en pourcentage pour être indépendant de la taille écran
             const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
-            
-            // Seuil adapté : 5% c'est assez généreux mais précis
             const threshold = 5; 
 
             if (dist < threshold) {
@@ -498,7 +547,6 @@
             el.style.left = `${x}%`;
             el.style.top = `${y}%`;
             el.classList.add('locked');
-            // Enlever l'ombre pour aplatir la pièce
             el.style.filter = 'none'; 
             lockedCount++;
             if (lockedCount === totalPieces) onWin();
@@ -507,10 +555,7 @@
         function onWin() {
             container.classList.add('puzzle-complete');
             instructionText.style.opacity = '0';
-            
-            // On joue les confettis
             triggerConfetti();
-
             setTimeout(() => {
                 instructionText.style.display = 'none';
                 successMsg.classList.add('visible');
