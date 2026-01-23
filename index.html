@@ -240,8 +240,8 @@
             rows: 3,
             cols: 4,
             snapThresholdPercent: 12,
-            // J'augmente légèrement la taille pour des oreilles bien rondes
-            tabSizeFactor: 0.25, 
+            // RÉDUCTION : On passe de 0.25 à 0.22 pour des oreilles plus discrètes
+            tabSizeFactor: 0.22, 
             maxSafeWidth: 1600 
         };
 
@@ -415,7 +415,7 @@
             pieces.push(canvas);
         }
 
-        // --- NOUVELLE FONCTION DE COURBE "OMEGA" (STYLE RAVENSBURGER) ---
+        // --- NOUVELLE COURBE "BOUTON" (Hyper arrondie) ---
         function drawCurve(ctx, x1, y1, x2, y2, size) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
@@ -425,8 +425,8 @@
             const nx = -uy;
             const ny = ux;
             
-            // On définit un cou assez fin (20% de la largeur)
-            const baseW = 0.20; 
+            // On pince le cou encore un peu plus (18%) pour accentuer l'effet boule
+            const baseW = 0.18; 
             
             const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
             const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
@@ -438,28 +438,27 @@
 
             ctx.lineTo(xBase1, yBase1);
 
-            // ASTUCE MATHÉMATIQUE POUR L'EFFET ROND :
-            // Le premier point de contrôle (CP1) tire "en arrière" (-ux) et "en haut" (nx).
-            // Cela crée l'effet de "boule" qui dépasse de la base (forme en Ω).
-
-            // Courbe Montante (Gauche -> Pointe)
+            // COURBES TRÈS GÉNÉREUSES POUR L'EFFET ROND
+            // J'ai augmenté significativement les vecteurs normaux (0.4) pour "gonfler" la forme
+            
+            // Courbe Montante
             ctx.bezierCurveTo(
-                xBase1 - ux * dist * 0.15 + nx * size * 0.3, // CP1: Tire vers l'extérieur gauche
-                yBase1 - uy * dist * 0.15 + ny * size * 0.3,
+                xBase1 - ux * dist * 0.10 + nx * size * 0.4, // Pousse fort vers l'extérieur
+                yBase1 - uy * dist * 0.10 + ny * size * 0.4,
                 
-                xTip - ux * dist * 0.05 + nx * size * 0.1,   // CP2: Arrive vers la pointe
-                yTip - uy * dist * 0.05 + ny * size * 0.1,
+                xTip - ux * dist * 0.1, 
+                yTip - uy * dist * 0.1,
                 
                 xTip, yTip
             );
 
-            // Courbe Descendante (Pointe -> Droite)
+            // Courbe Descendante
             ctx.bezierCurveTo(
-                xTip + ux * dist * 0.05 + nx * size * 0.1, 
-                yTip + uy * dist * 0.05 + ny * size * 0.1,
+                xTip + ux * dist * 0.1, 
+                yTip + uy * dist * 0.1,
                 
-                xBase2 + ux * dist * 0.15 + nx * size * 0.3, // CP2: Tire vers l'extérieur droit
-                yBase2 + uy * dist * 0.15 + ny * size * 0.3,
+                xBase2 + ux * dist * 0.10 + nx * size * 0.4, // Pousse fort vers l'extérieur
+                yBase2 + uy * dist * 0.10 + ny * size * 0.4,
                 
                 xBase2, yBase2
             );
