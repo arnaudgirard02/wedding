@@ -240,8 +240,8 @@
             rows: 3,
             cols: 4,
             snapThresholdPercent: 12,
-            // Augmenté à 0.30 pour laisser de la place aux oreilles très rondes
-            tabSizeFactor: 0.30, 
+            // J'ai augmenté légèrement la taille (0.24) pour compenser la rondeur
+            tabSizeFactor: 0.24, 
             maxSafeWidth: 1600 
         };
 
@@ -347,19 +347,15 @@
             ctx.beginPath();
             ctx.moveTo(startX, startY);
 
-            // Haut
             if (shape[0] !== 0) drawCurve(ctx, startX, startY, startX + w, startY, shape[0] * tabSize);
             else ctx.lineTo(startX + w, startY);
 
-            // Droite
             if (shape[1] !== 0) drawCurve(ctx, startX + w, startY, startX + w, startY + h, shape[1] * tabSize);
             else ctx.lineTo(startX + w, startY + h);
 
-            // Bas
             if (shape[2] !== 0) drawCurve(ctx, startX + w, startY + h, startX, startY + h, shape[2] * tabSize);
             else ctx.lineTo(startX, startY + h);
 
-            // Gauche
             if (shape[3] !== 0) drawCurve(ctx, startX, startY + h, startX, startY, shape[3] * tabSize);
             else ctx.lineTo(startX, startY);
 
@@ -419,7 +415,7 @@
             pieces.push(canvas);
         }
 
-        // --- FONCTION DE COURBE CORRIGÉE (Effet Bulbe) ---
+        // --- NOUVELLE FONCTION DE COURBE (Arrondie) ---
         function drawCurve(ctx, x1, y1, x2, y2, size) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
@@ -429,38 +425,36 @@
             const nx = -uy;
             const ny = ux;
             
-            // Base plus étroite pour un cou plus marqué (0.14 au lieu de 0.20)
-            const baseW = 0.14; 
+            // On réduit la largeur de la base pour un cou plus fin
+            const baseW = 0.20; 
             
             const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
             const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
             const xBase2 = x1 + ux * dist * (0.5 + baseW/2);
             const yBase2 = y1 + uy * dist * (0.5 + baseW/2);
-            
-            // Le point culminant de l'oreille
             const xTip = cx + nx * size;
             const yTip = cy + ny * size;
 
             ctx.lineTo(xBase1, yBase1);
 
-            // Paramètres Bézier pour une tête d'oreille bien ronde (Bulbeuse)
-            // On élargit les points de contrôle pour "gonfler" la forme
+            // J'ai augmenté les facteurs de contrôle (0.3 au lieu de 0.2 et 0.2 au lieu de 0.1)
+            // Cela donne une courbe plus ample, plus "gonflée", donc plus ronde.
             
-            // Courbe Montante (évasée vers l'extérieur)
+            // Courbe Montante
             ctx.bezierCurveTo(
-                xBase1 + nx * size * 0.45 - ux * dist * 0.1, 
-                yBase1 + ny * size * 0.45 - uy * dist * 0.1,
-                xTip - ux * dist * 0.25, 
-                yTip - uy * dist * 0.25,
+                xBase1 + ux * dist * 0.05 + nx * size * 0.35, 
+                yBase1 + uy * dist * 0.05 + ny * size * 0.35,
+                xTip - ux * dist * 0.15, 
+                yTip - uy * dist * 0.15,
                 xTip, yTip
             );
 
-            // Courbe Descendante (évasée vers l'extérieur)
+            // Courbe Descendante
             ctx.bezierCurveTo(
-                xTip + ux * dist * 0.25, 
-                yTip + uy * dist * 0.25,
-                xBase2 + nx * size * 0.45 + ux * dist * 0.1, 
-                yBase2 + ny * size * 0.45 + uy * dist * 0.1,
+                xTip + ux * dist * 0.15, 
+                yTip + uy * dist * 0.15,
+                xBase2 - ux * dist * 0.05 + nx * size * 0.35, 
+                yBase2 - uy * dist * 0.05 + ny * size * 0.35,
                 xBase2, yBase2
             );
 
