@@ -240,8 +240,8 @@
             rows: 3,
             cols: 4,
             snapThresholdPercent: 12,
-            // J'ai augmenté légèrement la taille (0.24) pour compenser la rondeur
-            tabSizeFactor: 0.24, 
+            // Facteur augmenté pour laisser de la place aux oreilles larges
+            tabSizeFactor: 0.32, 
             maxSafeWidth: 1600 
         };
 
@@ -252,9 +252,10 @@
         const successMsg = document.getElementById('success-message');
         const loadingMsg = document.getElementById('loading');
 
-        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
         const bgImgElement = document.getElementById('bg-img');
         
+        // Background loader simplifié
+        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
         function tryLoadBackground(index) {
             if (index >= possibleBackgrounds.length) return;
             const currentName = possibleBackgrounds[index];
@@ -300,19 +301,14 @@
                     workingHeight = Math.floor(imgPieces.naturalHeight * scale);
                 }
 
-                const ratio = workingWidth / workingHeight;
-                container.style.aspectRatio = `${ratio}`;
+                container.style.aspectRatio = `${workingWidth / workingHeight}`;
                 guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
                 finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
                 
                 initPuzzle(workingWidth, workingHeight);
             } catch (e) {
-                alert("Oups, une erreur est survenue : " + e.message);
+                console.error(e);
             }
-        };
-
-        imgPieces.onerror = () => {
-            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
         };
 
         function initPuzzle(totalW, totalH) {
@@ -347,6 +343,7 @@
             ctx.beginPath();
             ctx.moveTo(startX, startY);
 
+            // Dessin des 4 côtés
             if (shape[0] !== 0) drawCurve(ctx, startX, startY, startX + w, startY, shape[0] * tabSize);
             else ctx.lineTo(startX + w, startY);
 
@@ -369,93 +366,67 @@
 
             let sx = ((col * w) - tabSize) * scaleX;
             let sy = ((row * h) - tabSize) * scaleY;
-            let sWidth = canvasW * scaleX;
-            let sHeight = canvasH * scaleY;
-            let dx = 0;
-            let dy = 0;
-            let dWidth = canvasW;
-            let dHeight = canvasH;
-
-            if (sx < 0) {
-                const offset = -sx; 
-                sWidth -= offset;
-                sx = 0;
-                dx += (offset / scaleX);
-                dWidth -= (offset / scaleX);
-            }
-            if (sy < 0) {
-                const offset = -sy;
-                sHeight -= offset;
-                sy = 0;
-                dy += (offset / scaleY);
-                dHeight -= (offset / scaleY);
-            }
-
-            if (sWidth > 0 && sHeight > 0) {
-                ctx.drawImage(imgPieces, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
-            }
             
+            ctx.drawImage(imgPieces, sx, sy, canvasW * scaleX, canvasH * scaleY, 0, 0, canvasW, canvasH);
             ctx.restore();
 
-            ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 2; ctx.stroke();
-            ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
+            // Bordures de pièces pour le relief
+            ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 1; ctx.stroke();
 
-            const widthPercent = (canvasW / totalImgW) * 100;
-            canvas.style.width = `${widthPercent}%`;
-            canvas.style.height = 'auto'; 
-            
-            const pctPerPixelX = 100 / totalImgW;
-            const pctPerPixelY = 100 / totalImgH;
-            
-            canvas.dataset.targetX = ((col * w) - tabSize) * pctPerPixelX;
-            canvas.dataset.targetY = ((row * h) - tabSize) * pctPerPixelY;
+            canvas.style.width = `${(canvasW / totalImgW) * 100}%`;
+            canvas.dataset.targetX = ((col * w) - tabSize) * (100 / totalImgW);
+            canvas.dataset.targetY = ((row * h) - tabSize) * (100 / totalImgH);
 
             addDragListeners(canvas);
             container.appendChild(canvas);
             pieces.push(canvas);
         }
 
-        // --- NOUVELLE FONCTION DE COURBE (Arrondie) ---
+        /**
+         * --- LOGIQUE DE DESSIN "OREILLE RONDE" ---
+         * Modifiée pour obtenir un goulot étroit et une tête circulaire large.
+         */
         function drawCurve(ctx, x1, y1, x2, y2, size) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
             const dist = Math.hypot(x2 - x1, y2 - y1);
+            
+            // Vecteurs unitaires
             const ux = (x2 - x1) / dist;
             const uy = (y2 - y1) / dist;
-            const nx = -uy;
+            const nx = -uy; // Normale
             const ny = ux;
-            
-            // On réduit la largeur de la base pour un cou plus fin
-            const baseW = 0.20; 
-            
-            const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
-            const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
-            const xBase2 = x1 + ux * dist * (0.5 + baseW/2);
-            const yBase2 = y1 + uy * dist * (0.5 + baseW/2);
-            const xTip = cx + nx * size;
-            const yTip = cy + ny * size;
 
-            ctx.lineTo(xBase1, yBase1);
+            // Paramètres de forme (Look Classique)
+            const neckWidth = 0.12; // Largeur du goulot (étroit)
+            const headWidth = 0.35; // Évasement de la tête (large)
 
-            // J'ai augmenté les facteurs de contrôle (0.3 au lieu de 0.2 et 0.2 au lieu de 0.1)
-            // Cela donne une courbe plus ample, plus "gonflée", donc plus ronde.
+            // Points de base du goulot
+            const pBase1 = { x: x1 + ux * dist * (0.5 - neckWidth), y: y1 + uy * dist * (0.5 - neckWidth) };
+            const pBase2 = { x: x1 + ux * dist * (0.5 + neckWidth), y: y1 + uy * dist * (0.5 + neckWidth) };
             
-            // Courbe Montante
+            // Sommet de l'oreille
+            const pTip = { x: cx + nx * size, y: cy + ny * size };
+
+            ctx.lineTo(pBase1.x, pBase1.y);
+
+            // Courbe montante : s'évase vers l'extérieur pour former le cercle
             ctx.bezierCurveTo(
-                xBase1 + ux * dist * 0.05 + nx * size * 0.35, 
-                yBase1 + uy * dist * 0.05 + ny * size * 0.35,
-                xTip - ux * dist * 0.15, 
-                yTip - uy * dist * 0.15,
-                xTip, yTip
+                pBase1.x + nx * size * 0.4 - ux * dist * headWidth, 
+                pBase1.y + ny * size * 0.4 - uy * dist * headWidth,
+                pTip.x - ux * dist * headWidth, 
+                pTip.y - uy * dist * headWidth,
+                pTip.x, pTip.y
             );
 
-            // Courbe Descendante
+            // Courbe descendante : symétrique
             ctx.bezierCurveTo(
-                xTip + ux * dist * 0.15, 
-                yTip + uy * dist * 0.15,
-                xBase2 - ux * dist * 0.05 + nx * size * 0.35, 
-                yBase2 - uy * dist * 0.05 + ny * size * 0.35,
-                xBase2, yBase2
+                pTip.x + ux * dist * headWidth, 
+                pTip.y + uy * dist * headWidth,
+                pBase2.x + nx * size * 0.4 + ux * dist * headWidth, 
+                pBase2.y + ny * size * 0.4 + uy * dist * headWidth,
+                pBase2.x, pBase2.y
             );
 
             ctx.lineTo(x2, y2);
@@ -466,37 +437,13 @@
             const winW = window.innerWidth;
             const winH = window.innerHeight;
             const isMobile = winW < 768; 
-            const headerHeight = document.getElementById('game-ui').offsetHeight + 20;
+            const headerHeight = 100;
 
             pieces.forEach(piece => {
-                if(piece.classList.contains('locked')) return;
-                
                 const rect = piece.getBoundingClientRect();
-                const pW = rect.width;
-                const pH = rect.height;
-                const safeMargin = 10;
-                
-                let minX, maxX, minY, maxY;
+                let minX = 10, maxX = winW - rect.width - 10;
+                let minY = headerHeight, maxY = winH - rect.height - 100;
 
-                if (isMobile) {
-                    minX = safeMargin;
-                    maxX = winW - pW - safeMargin;
-                    minY = headerHeight;
-                    maxY = winH - pH - 80; 
-                } else {
-                    const side = Math.random() > 0.5 ? 'left' : 'right';
-                    if (side === 'left') {
-                        minX = safeMargin; maxX = containerRect.left - pW - safeMargin;
-                    } else {
-                        minX = containerRect.right + safeMargin; maxX = winW - pW - safeMargin;
-                    }
-                    minY = headerHeight; maxY = winH - pH - safeMargin;
-                    if (maxX < minX) { minX = safeMargin; maxX = winW - pW - safeMargin; }
-                }
-                
-                if (maxX < minX) maxX = minX;
-                if (maxY < minY) maxY = minY;
-                
                 const pageX = minX + Math.random() * (maxX - minX);
                 const pageY = minY + Math.random() * (maxY - minY);
 
@@ -506,16 +453,13 @@
         }
 
         function addDragListeners(el) {
-            let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
+            let startX, startY, initialLeft, initialTop, isDragging = false;
             
             const onStart = (e) => {
-                if (el.classList.contains('locked')) return; 
-                if (e.cancelable && e.type === 'touchstart') e.preventDefault();
-                
+                if (el.classList.contains('locked')) return;
                 isDragging = true;
                 el.classList.add('dragging');
                 container.appendChild(el); 
-
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
                 startX = clientX; startY = clientY;
@@ -524,13 +468,10 @@
             
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault(); 
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                const dx = clientX - startX;
-                const dy = clientY - startY;
-                el.style.left = `${initialLeft + dx}px`;
-                el.style.top = `${initialTop + dy}px`;
+                el.style.left = `${initialLeft + (clientX - startX)}px`;
+                el.style.top = `${initialTop + (clientY - startY)}px`;
             };
             
             const onEnd = () => {
@@ -540,56 +481,40 @@
                 checkSnap(el);
             };
 
-            el.addEventListener('mousedown', onStart); 
+            el.addEventListener('mousedown', onStart);
             el.addEventListener('touchstart', onStart, {passive:false});
-            window.addEventListener('mousemove', onMove); 
+            window.addEventListener('mousemove', onMove);
             window.addEventListener('touchmove', onMove, {passive:false});
-            window.addEventListener('mouseup', onEnd); 
+            window.addEventListener('mouseup', onEnd);
             window.addEventListener('touchend', onEnd);
         }
 
         function checkSnap(el) {
-            const containerW = container.offsetWidth;
-            const containerH = container.offsetHeight;
-            const currentX = (el.offsetLeft / containerW) * 100;
-            const currentY = (el.offsetTop / containerH) * 100;
+            const currentX = (el.offsetLeft / container.offsetWidth) * 100;
+            const currentY = (el.offsetTop / container.offsetHeight) * 100;
             const targetX = parseFloat(el.dataset.targetX);
             const targetY = parseFloat(el.dataset.targetY);
             const dist = Math.hypot(currentX - targetX, currentY - targetY);
-            const isMobile = window.innerWidth < 768;
-            const threshold = isMobile ? 8 : 4; 
 
-            if (dist < threshold) {
-                snapPiece(el, targetX, targetY);
+            if (dist < (window.innerWidth < 768 ? 8 : 4)) {
+                el.style.left = `${targetX}%`;
+                el.style.top = `${targetY}%`;
+                el.classList.add('locked');
+                lockedCount++;
+                if (navigator.vibrate) navigator.vibrate(15);
+                if (lockedCount === totalPieces) onWin();
             }
-        }
-
-        function snapPiece(el, x, y) {
-            el.style.left = `${x}%`;
-            el.style.top = `${y}%`;
-            el.classList.add('locked');
-            lockedCount++;
-            if (navigator.vibrate) navigator.vibrate(10);
-            if (lockedCount === totalPieces) onWin();
         }
 
         function onWin() {
             container.classList.add('puzzle-complete');
             instructionText.style.opacity = '0';
             triggerConfetti();
-            setTimeout(() => {
-                instructionText.style.display = 'none';
-                successMsg.classList.add('visible');
-            }, 500);
+            setTimeout(() => { successMsg.classList.add('visible'); }, 500);
         }
 
         function triggerConfetti() {
-            var count = 200;
-            var defaults = { origin: { y: 0.85 }, zIndex: 9999 };
-            function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
-            fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         }
     </script>
 </body>
