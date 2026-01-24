@@ -37,7 +37,7 @@
             left: 0;
             width: 100%;
             height: auto; 
-            z-index: 0;   
+            z-index: -1;   /* Reste bien derrière le puzzle */
             pointer-events: none;
             display: flex;
             align-items: flex-end; 
@@ -80,12 +80,14 @@
         /* --- PUZZLE CONTAINER --- */
         #puzzle-container {
             position: relative;
-            z-index: 50; 
+            z-index: 10; 
             width: 92vw;
             max-width: 600px;
             background-color: transparent;
             margin-bottom: 120px; 
             touch-action: none; 
+            overflow: hidden; 
+            border-radius: 8px;
         }
 
         #puzzle-frame {
@@ -106,10 +108,10 @@
             height: 100%;
             background-size: 100% 100%;
             opacity: 0.15;
-            border: 1px dashed #ccc;
-            border-radius: 8px;
             z-index: 0;
+            /* FLOU LÉGER */
             filter: blur(3px);
+            transform: scale(1.05);
         }
 
         #final-reveal {
@@ -241,7 +243,6 @@
             rows: 3,
             cols: 4,
             snapThresholdPercent: 12,
-            // J'ai augmenté légèrement la taille (0.24) pour compenser la rondeur
             tabSizeFactor: 0.24, 
             maxSafeWidth: 1600 
         };
@@ -416,7 +417,7 @@
             pieces.push(canvas);
         }
 
-        // --- NOUVELLE FONCTION DE COURBE (Arrondie) ---
+        // --- COURBE "BOUTON" PLUS ARRONDIE ---
         function drawCurve(ctx, x1, y1, x2, y2, size) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
@@ -426,36 +427,39 @@
             const nx = -uy;
             const ny = ux;
             
-            // On réduit la largeur de la base pour un cou plus fin
-            const baseW = 0.20; 
+            // On pince le cou un peu plus (15% au lieu de 18%) pour accentuer l'effet boule ronde
+            const baseW = 0.15; 
             
             const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
             const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
             const xBase2 = x1 + ux * dist * (0.5 + baseW/2);
             const yBase2 = y1 + uy * dist * (0.5 + baseW/2);
+            
             const xTip = cx + nx * size;
             const yTip = cy + ny * size;
 
             ctx.lineTo(xBase1, yBase1);
 
-            // J'ai augmenté les facteurs de contrôle (0.3 au lieu de 0.2 et 0.2 au lieu de 0.1)
-            // Cela donne une courbe plus ample, plus "gonflée", donc plus ronde.
-            
+            // Courbes très généreuses pour un aspect circulaire parfait
             // Courbe Montante
             ctx.bezierCurveTo(
-                xBase1 + ux * dist * 0.05 + nx * size * 0.35, 
-                yBase1 + uy * dist * 0.05 + ny * size * 0.35,
-                xTip - ux * dist * 0.15, 
-                yTip - uy * dist * 0.15,
+                xBase1 - ux * dist * 0.12 + nx * size * 0.45, 
+                yBase1 - uy * dist * 0.12 + ny * size * 0.45,
+                
+                xTip - ux * dist * 0.12, 
+                yTip - uy * dist * 0.12,
+                
                 xTip, yTip
             );
 
             // Courbe Descendante
             ctx.bezierCurveTo(
-                xTip + ux * dist * 0.15, 
-                yTip + uy * dist * 0.15,
-                xBase2 - ux * dist * 0.05 + nx * size * 0.35, 
-                yBase2 - uy * dist * 0.05 + ny * size * 0.35,
+                xTip + ux * dist * 0.12, 
+                yTip + uy * dist * 0.12,
+                
+                xBase2 + ux * dist * 0.12 + nx * size * 0.45, 
+                yBase2 + uy * dist * 0.12 + ny * size * 0.45,
+                
                 xBase2, yBase2
             );
 
