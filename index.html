@@ -107,12 +107,10 @@
             width: 100%;
             height: 100%;
             background-size: 100% 100%;
-            opacity: 0.2; /* Légèrement plus d'opacité car le flou l'éclaircit */
-            
-            /* --- FLOU AUGMENTÉ À 30px --- */
-            filter: blur(30px);
-            /* Scale un peu plus large pour couvrir les bords flous */
-            transform: scale(1.1); 
+            opacity: 0.15;
+            /* FLOU TRÈS LÉGER (4px) */
+            filter: blur(4px);
+            transform: scale(1.05); /* Échelle pour éviter les bords blancs du flou */
             z-index: 0;
         }
 
@@ -419,6 +417,7 @@
             pieces.push(canvas);
         }
 
+        // --- COURBE "BOUTON" (Hyper arrondie) ---
         function drawCurve(ctx, x1, y1, x2, y2, size) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
@@ -427,16 +426,37 @@
             const uy = (y2 - y1) / dist;
             const nx = -uy;
             const ny = ux;
+            
             const baseW = 0.18; 
+            
             const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
             const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
             const xBase2 = x1 + ux * dist * (0.5 + baseW/2);
             const yBase2 = y1 + uy * dist * (0.5 + baseW/2);
+            
             const xTip = cx + nx * size;
             const yTip = cy + ny * size;
+
             ctx.lineTo(xBase1, yBase1);
-            ctx.bezierCurveTo(xBase1 - ux * dist * 0.10 + nx * size * 0.4, yBase1 - uy * dist * 0.10 + ny * size * 0.4, xTip - ux * dist * 0.1, yTip - uy * dist * 0.1, xTip, yTip);
-            ctx.bezierCurveTo(xTip + ux * dist * 0.1, yTip + uy * dist * 0.1, xBase2 + ux * dist * 0.10 + nx * size * 0.4, yBase2 + uy * dist * 0.10 + ny * size * 0.4, xBase2, yBase2);
+
+            // Courbe Montante
+            ctx.bezierCurveTo(
+                xBase1 - ux * dist * 0.10 + nx * size * 0.4, 
+                yBase1 - uy * dist * 0.10 + ny * size * 0.4,
+                xTip - ux * dist * 0.1, 
+                yTip - uy * dist * 0.1,
+                xTip, yTip
+            );
+
+            // Courbe Descendante
+            ctx.bezierCurveTo(
+                xTip + ux * dist * 0.1, 
+                yTip + uy * dist * 0.1,
+                xBase2 + ux * dist * 0.10 + nx * size * 0.4, 
+                yBase2 + uy * dist * 0.10 + ny * size * 0.4,
+                xBase2, yBase2
+            );
+
             ctx.lineTo(x2, y2);
         }
 
@@ -446,25 +466,39 @@
             const winH = window.innerHeight;
             const isMobile = winW < 768; 
             const headerHeight = document.getElementById('game-ui').offsetHeight + 20;
+
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
+                
                 const rect = piece.getBoundingClientRect();
                 const pW = rect.width;
                 const pH = rect.height;
                 const safeMargin = 10;
+                
                 let minX, maxX, minY, maxY;
+
                 if (isMobile) {
-                    minX = safeMargin; maxX = winW - pW - safeMargin; minY = headerHeight; maxY = winH - pH - 80; 
+                    minX = safeMargin;
+                    maxX = winW - pW - safeMargin;
+                    minY = headerHeight;
+                    maxY = winH - pH - 80; 
                 } else {
                     const side = Math.random() > 0.5 ? 'left' : 'right';
-                    if (side === 'left') { minX = safeMargin; maxX = containerRect.left - pW - safeMargin; }
-                    else { minX = containerRect.right + safeMargin; maxX = winW - pW - safeMargin; }
+                    if (side === 'left') {
+                        minX = safeMargin; maxX = containerRect.left - pW - safeMargin;
+                    } else {
+                        minX = containerRect.right + safeMargin; maxX = winW - pW - safeMargin;
+                    }
                     minY = headerHeight; maxY = winH - pH - safeMargin;
                     if (maxX < minX) { minX = safeMargin; maxX = winW - pW - safeMargin; }
                 }
-                if (maxX < minX) maxX = minX; if (maxY < minY) maxY = minY;
+                
+                if (maxX < minX) maxX = minX;
+                if (maxY < minY) maxY = minY;
+                
                 const pageX = minX + Math.random() * (maxX - minX);
                 const pageY = minY + Math.random() * (maxY - minY);
+
                 piece.style.left = `${pageX - containerRect.left}px`;
                 piece.style.top = `${pageY - containerRect.top}px`;
             });
@@ -472,48 +506,85 @@
 
         function addDragListeners(el) {
             let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
+            
             const onStart = (e) => {
                 if (el.classList.contains('locked')) return; 
                 if (e.cancelable && e.type === 'touchstart') e.preventDefault();
-                isDragging = true; el.classList.add('dragging'); container.appendChild(el); 
+                
+                isDragging = true;
+                el.classList.add('dragging');
+                container.appendChild(el); 
+
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                startX = clientX; startY = clientY; initialLeft = el.offsetLeft; initialTop = el.offsetTop;
+                startX = clientX; startY = clientY;
+                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
             };
+            
             const onMove = (e) => {
-                if (!isDragging) return; e.preventDefault(); 
+                if (!isDragging) return;
+                e.preventDefault(); 
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                const dx = clientX - startX; const dy = clientY - startY;
-                el.style.left = `${initialLeft + dx}px`; el.style.top = `${initialTop + dy}px`;
+                const dx = clientX - startX;
+                const dy = clientY - startY;
+                el.style.left = `${initialLeft + dx}px`;
+                el.style.top = `${initialTop + dy}px`;
             };
-            const onEnd = () => { if (!isDragging) return; isDragging = false; el.classList.remove('dragging'); checkSnap(el); };
-            el.addEventListener('mousedown', onStart); el.addEventListener('touchstart', onStart, {passive:false});
-            window.addEventListener('mousemove', onMove); window.addEventListener('touchmove', onMove, {passive:false});
-            window.addEventListener('mouseup', onEnd); window.addEventListener('touchend', onEnd);
+            
+            const onEnd = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                el.classList.remove('dragging');
+                checkSnap(el);
+            };
+
+            el.addEventListener('mousedown', onStart); 
+            el.addEventListener('touchstart', onStart, {passive:false});
+            window.addEventListener('mousemove', onMove); 
+            window.addEventListener('touchmove', onMove, {passive:false});
+            window.addEventListener('mouseup', onEnd); 
+            window.addEventListener('touchend', onEnd);
         }
 
         function checkSnap(el) {
-            const containerW = container.offsetWidth; const containerH = container.offsetHeight;
-            const currentX = (el.offsetLeft / containerW) * 100; const currentY = (el.offsetTop / containerH) * 100;
-            const targetX = parseFloat(el.dataset.targetX); const targetY = parseFloat(el.dataset.targetY);
+            const containerW = container.offsetWidth;
+            const containerH = container.offsetHeight;
+            const currentX = (el.offsetLeft / containerW) * 100;
+            const currentY = (el.offsetTop / containerH) * 100;
+            const targetX = parseFloat(el.dataset.targetX);
+            const targetY = parseFloat(el.dataset.targetY);
             const dist = Math.hypot(currentX - targetX, currentY - targetY);
-            const isMobile = window.innerWidth < 768; const threshold = isMobile ? 8 : 4; 
-            if (dist < threshold) snapPiece(el, targetX, targetY);
+            const isMobile = window.innerWidth < 768;
+            const threshold = isMobile ? 8 : 4; 
+
+            if (dist < threshold) {
+                snapPiece(el, targetX, targetY);
+            }
         }
 
         function snapPiece(el, x, y) {
-            el.style.left = `${x}%`; el.style.top = `${y}%`; el.classList.add('locked'); lockedCount++;
-            if (navigator.vibrate) navigator.vibrate(10); if (lockedCount === totalPieces) onWin();
+            el.style.left = `${x}%`;
+            el.style.top = `${y}%`;
+            el.classList.add('locked');
+            lockedCount++;
+            if (navigator.vibrate) navigator.vibrate(10);
+            if (lockedCount === totalPieces) onWin();
         }
 
         function onWin() {
-            container.classList.add('puzzle-complete'); instructionText.style.opacity = '0'; triggerConfetti();
-            setTimeout(() => { instructionText.style.display = 'none'; successMsg.classList.add('visible'); }, 500);
+            container.classList.add('puzzle-complete');
+            instructionText.style.opacity = '0';
+            triggerConfetti();
+            setTimeout(() => {
+                instructionText.style.display = 'none';
+                successMsg.classList.add('visible');
+            }, 500);
         }
 
         function triggerConfetti() {
-            var count = 200; var defaults = { origin: { y: 0.85 }, zIndex: 9999 };
+            var count = 200;
+            var defaults = { origin: { y: 0.85 }, zIndex: 9999 };
             function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
             fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
             fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
