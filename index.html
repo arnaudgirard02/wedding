@@ -6,6 +6,7 @@
     <title>Save the Date - Puzzle</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
+        /* --- RESET & BASE --- */
         * {
             box-sizing: border-box;
             user-select: none;
@@ -29,6 +30,7 @@
             position: relative;
         }
 
+        /* --- ARRIÈRE-PLAN --- */
         #background-container {
             position: fixed;
             bottom: 0;
@@ -48,6 +50,7 @@
             height: auto; 
         }
 
+        /* --- UI ELEMENTS --- */
         #game-ui {
             text-align: center;
             margin-top: 20px;
@@ -73,6 +76,7 @@
             color: #dfa668;
         }
 
+        /* --- PUZZLE CONTAINER --- */
         #puzzle-container {
             position: relative;
             z-index: 50; 
@@ -94,7 +98,10 @@
 
         #puzzle-guide {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background-size: 100% 100%;
             opacity: 0.15;
             border: 1px dashed #ccc;
@@ -104,7 +111,10 @@
 
         #final-reveal {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background-size: 100% 100%;
             opacity: 0;
             z-index: 150; 
@@ -113,6 +123,7 @@
             border-radius: 8px;
         }
 
+        /* --- PIECES --- */
         .piece {
             position: absolute;
             cursor: grab;
@@ -135,6 +146,7 @@
             pointer-events: none;
         }
 
+        /* --- SUCCESS STATE --- */
         #success-message {
             position: fixed;
             bottom: -200px;
@@ -199,8 +211,8 @@
             rows: 3,
             cols: 4,
             snapThresholdPercent: 12,
-            // Taille réduite pour coller à la photo (Format classique)
-            tabSizeFactor: 0.20, 
+            // Légèrement augmenté pour compenser la finesse des nouvelles oreilles
+            tabSizeFactor: 0.22, 
             maxSafeWidth: 1600 
         };
 
@@ -317,7 +329,7 @@
             pieces.push(canvas);
         }
 
-        // --- LOGIQUE DE COURBE "PHOTO RÉFÉRENCE" ---
+        // --- LOGIQUE DE COURBE "OVALE ÉTROIT" ---
         function drawCurve(ctx, x1, y1, x2, y2, size) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
@@ -327,9 +339,12 @@
             const nx = -uy;
             const ny = ux;
 
-            // Paramètres pour un look goulot serré / tête ronde
-            const neckWidth = 0.08; 
-            const headSpread = 0.20; 
+            // Paramètres ajustés pour un ovale étroit
+            const neckWidth = 0.10; // Base légèrement plus large pour soutenir l'ovale
+            // C'est ici que la largeur est réduite drastiquement (0.08 au lieu de 0.20)
+            const headSpread = 0.08; 
+            // Facteur d'allongement vers la pointe pour créer l'ovale
+            const elongation = 0.45; 
 
             const pBase1 = { x: x1 + ux * dist * (0.5 - neckWidth), y: y1 + uy * dist * (0.5 - neckWidth) };
             const pBase2 = { x: x1 + ux * dist * (0.5 + neckWidth), y: y1 + uy * dist * (0.5 + neckWidth) };
@@ -337,20 +352,21 @@
 
             ctx.lineTo(pBase1.x, pBase1.y);
 
-            // Bézier ajusté pour un effet bouton rond
+            // Courbe montante (étroite et allongée)
             ctx.bezierCurveTo(
-                pBase1.x + nx * size * 0.3 - ux * dist * headSpread, 
-                pBase1.y + ny * size * 0.3 - uy * dist * headSpread,
-                pTip.x - ux * dist * headSpread, 
-                pTip.y - uy * dist * headSpread,
+                pBase1.x + nx * size * elongation - ux * dist * headSpread, 
+                pBase1.y + ny * size * elongation - uy * dist * headSpread,
+                pTip.x - ux * dist * (headSpread * 0.5), 
+                pTip.y - uy * dist * (headSpread * 0.5),
                 pTip.x, pTip.y
             );
 
+            // Courbe descendante (symétrique)
             ctx.bezierCurveTo(
-                pTip.x + ux * dist * headSpread, 
-                pTip.y + uy * dist * headSpread,
-                pBase2.x + nx * size * 0.3 + ux * dist * headSpread, 
-                pBase2.y + ny * size * 0.3 + uy * dist * headSpread,
+                pTip.x + ux * dist * (headSpread * 0.5), 
+                pTip.y + uy * dist * (headSpread * 0.5),
+                pBase2.x + nx * size * elongation + ux * dist * headSpread, 
+                pBase2.y + ny * size * elongation + uy * dist * headSpread,
                 pBase2.x, pBase2.y
             );
 
