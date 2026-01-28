@@ -30,32 +30,7 @@
             position: relative;
         }
 
-        /* --- ARRIÈRE-PLAN AMÉLIORÉ --- */
-        /* OPTION 1: Image en position fixed qui couvre tout l'écran */
-        #background-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 0;   
-            pointer-events: none;
-            overflow: hidden;
-        }
-
-        #bg-img {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* L'image couvre toujours tout l'espace en gardant ses proportions */
-            object-position: center bottom; /* Positionne l'image en bas au centre */
-            opacity: 1;
-        }
-
-        /* OPTION 2 (Alternative) : Utiliser directement un background-image sur le body */
-        /* 
-        Décommente cette section et supprime le div #background-container si tu préfères cette méthode :
-        
+        /* --- ARRIÈRE-PLAN avec background-image --- */
         body::before {
             content: '';
             position: fixed;
@@ -67,10 +42,10 @@
             background-size: cover;
             background-position: center bottom;
             background-repeat: no-repeat;
+            background-attachment: fixed;
             z-index: 0;
             pointer-events: none;
         }
-        */
 
         /* --- UI ELEMENTS --- */
         #game-ui {
@@ -233,45 +208,43 @@
 
         /* --- MEDIA QUERIES pour ajustements supplémentaires --- */
         @media (max-width: 768px) {
-            #bg-img {
-                object-position: center bottom;
+            body::before {
+                background-position: center bottom;
             }
         }
 
         @media (min-width: 769px) and (max-width: 1200px) {
-            #bg-img {
-                object-position: center bottom;
+            body::before {
+                background-position: center bottom;
             }
         }
 
         @media (min-width: 1201px) {
-            #bg-img {
-                object-position: center bottom;
+            body::before {
+                background-position: center bottom;
             }
         }
 
         /* Pour les écrans très larges (ratio paysage extrême) */
         @media (min-aspect-ratio: 16/9) {
-            #bg-img {
-                object-fit: cover;
-                object-position: center bottom;
+            body::before {
+                background-size: cover;
+                background-position: center bottom;
             }
         }
 
         /* Pour les écrans très hauts (ratio portrait extrême) */
         @media (max-aspect-ratio: 9/16) {
-            #bg-img {
-                object-fit: cover;
-                object-position: center bottom;
+            body::before {
+                background-size: cover;
+                background-position: center bottom;
             }
         }
     </style>
 </head>
 <body>
 
-    <div id="background-container">
-        <img id="bg-img" src="bg.jpg" alt="Background">
-    </div>
+    <!-- Pas besoin de div #background-container dans cette version -->
 
     <div id="game-ui">
         <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
