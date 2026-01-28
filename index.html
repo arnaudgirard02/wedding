@@ -30,26 +30,47 @@
             position: relative;
         }
 
-        /* --- ARRIÈRE-PLAN --- */
+        /* --- ARRIÈRE-PLAN AMÉLIORÉ --- */
+        /* OPTION 1: Image en position fixed qui couvre tout l'écran */
         #background-container {
             position: fixed;
-            bottom: 0;
+            top: 0;
             left: 0;
-            width: 100%;
-            height: auto; 
+            width: 100vw;
+            height: 100vh;
             z-index: 0;   
             pointer-events: none;
-            display: flex;
-            align-items: flex-end; 
-            justify-content: center;
+            overflow: hidden;
         }
 
         #bg-img {
             display: block;
             width: 100%;
-            height: auto; 
-            opacity: 1; 
+            height: 100%;
+            object-fit: cover; /* L'image couvre toujours tout l'espace en gardant ses proportions */
+            object-position: center bottom; /* Positionne l'image en bas au centre */
+            opacity: 1;
         }
+
+        /* OPTION 2 (Alternative) : Utiliser directement un background-image sur le body */
+        /* 
+        Décommente cette section et supprime le div #background-container si tu préfères cette méthode :
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-image: url('bg.jpg');
+            background-size: cover;
+            background-position: center bottom;
+            background-repeat: no-repeat;
+            z-index: 0;
+            pointer-events: none;
+        }
+        */
 
         /* --- UI ELEMENTS --- */
         #game-ui {
@@ -209,12 +230,47 @@
             color: #999;
             z-index: 10;
         }
+
+        /* --- MEDIA QUERIES pour ajustements supplémentaires --- */
+        @media (max-width: 768px) {
+            #bg-img {
+                object-position: center bottom;
+            }
+        }
+
+        @media (min-width: 769px) and (max-width: 1200px) {
+            #bg-img {
+                object-position: center bottom;
+            }
+        }
+
+        @media (min-width: 1201px) {
+            #bg-img {
+                object-position: center bottom;
+            }
+        }
+
+        /* Pour les écrans très larges (ratio paysage extrême) */
+        @media (min-aspect-ratio: 16/9) {
+            #bg-img {
+                object-fit: cover;
+                object-position: center bottom;
+            }
+        }
+
+        /* Pour les écrans très hauts (ratio portrait extrême) */
+        @media (max-aspect-ratio: 9/16) {
+            #bg-img {
+                object-fit: cover;
+                object-position: center bottom;
+            }
+        }
     </style>
 </head>
 <body>
 
     <div id="background-container">
-        <img id="bg-img" src="" alt="">
+        <img id="bg-img" src="bg.jpg" alt="Background">
     </div>
 
     <div id="game-ui">
@@ -238,108 +294,78 @@
             piecesSrc: 'guide.jpg',   
             finalSrc: 'puzzle.png',   
             rows: 3,
-            cols: 4,
-            snapThresholdPercent: 12,
-            // J'ai augmenté légèrement la taille (0.24) pour compenser la rondeur
-            tabSizeFactor: 0.24, 
-            maxSafeWidth: 1600 
+            cols: 3
         };
 
         const container = document.getElementById('puzzle-container');
-        const guide = document.getElementById('puzzle-guide');
+        const loadingEl = document.getElementById('loading');
+        const puzzleGuide = document.getElementById('puzzle-guide');
         const finalReveal = document.getElementById('final-reveal');
         const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
-        const loadingMsg = document.getElementById('loading');
-
-        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
-        const bgImgElement = document.getElementById('bg-img');
-        
-        function tryLoadBackground(index) {
-            if (index >= possibleBackgrounds.length) return;
-            const currentName = possibleBackgrounds[index];
-            const tester = new Image();
-            tester.onload = () => { bgImgElement.src = currentName; };
-            tester.onerror = () => { tryLoadBackground(index + 1); };
-            tester.src = currentName;
-        }
-        tryLoadBackground(0);
-
         let pieces = [];
         let lockedCount = 0;
-        const totalPieces = CONFIG.rows * CONFIG.cols;
-
-        function generatePerfectShapes(rows, cols) {
-            const shapes = [];
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    let top = 0, right = 0, bottom = 0, left = 0;
-                    if (r > 0) top = -shapes[(r - 1) * cols + c][2];
-                    if (c < cols - 1) right = Math.random() > 0.5 ? 1 : -1;
-                    if (r < rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
-                    if (c > 0) left = -shapes[r * cols + (c - 1)][1];
-                    shapes.push([top, right, bottom, left]);
-                }
-            }
-            return shapes;
-        }
+        let totalPieces = CONFIG.rows * CONFIG.cols;
 
         const imgPieces = new Image();
-        imgPieces.crossOrigin = "Anonymous"; 
-        imgPieces.src = CONFIG.piecesSrc;
-        
-        imgPieces.onload = () => {
-            try {
-                loadingMsg.style.display = 'none';
-                let workingWidth = imgPieces.naturalWidth;
-                let workingHeight = imgPieces.naturalHeight;
-                
-                if (workingWidth > CONFIG.maxSafeWidth) {
-                    const scale = CONFIG.maxSafeWidth / workingWidth;
-                    workingWidth = CONFIG.maxSafeWidth;
-                    workingHeight = Math.floor(imgPieces.naturalHeight * scale);
-                }
+        const imgFinal = new Image();
+        let loadedImages = 0;
 
-                const ratio = workingWidth / workingHeight;
-                container.style.aspectRatio = `${ratio}`;
-                guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
+        function checkAllLoaded() {
+            loadedImages++;
+            if (loadedImages === 2) {
+                loadingEl.style.display = 'none';
+                puzzleGuide.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
                 finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
-                
-                initPuzzle(workingWidth, workingHeight);
-            } catch (e) {
-                alert("Oups, une erreur est survenue : " + e.message);
+                initPuzzle();
             }
-        };
+        }
 
-        imgPieces.onerror = () => {
-            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
-        };
+        imgPieces.onload = checkAllLoaded;
+        imgFinal.onload = checkAllLoaded;
+        imgPieces.src = CONFIG.piecesSrc;
+        imgFinal.src = CONFIG.finalSrc;
 
-        function initPuzzle(totalW, totalH) {
-            const pieceW = totalW / CONFIG.cols;
-            const pieceH = totalH / CONFIG.rows;
-            const tabSize = Math.min(pieceW, pieceH) * CONFIG.tabSizeFactor;
-            const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
-
-            for (let r = 0; r < CONFIG.rows; r++) {
-                for (let c = 0; c < CONFIG.cols; c++) {
-                    const shapeIndex = r * CONFIG.cols + c;
-                    createCanvasPiece(r, c, pieceW, pieceH, tabSize, generatedShapes[shapeIndex], totalW, totalH);
-                }
-            }
+        function initPuzzle() {
+            const aspectRatio = imgPieces.naturalWidth / imgPieces.naturalHeight;
+            container.style.aspectRatio = aspectRatio;
+            generatePieces();
             scramblePieces();
         }
 
-        function createCanvasPiece(row, col, w, h, tabSize, shape, totalImgW, totalImgH) {
+        function generatePieces() {
+            const rows = CONFIG.rows;
+            const cols = CONFIG.cols;
+            const totalImgW = imgPieces.naturalWidth;
+            const totalImgH = imgPieces.naturalHeight;
+            const w = totalImgW / cols;
+            const h = totalImgH / rows;
+            const tabSize = Math.min(w, h) * 0.14;
+
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    createPiece(row, col, rows, cols, w, h, tabSize, totalImgW, totalImgH);
+                }
+            }
+        }
+
+        function createPiece(row, col, rows, cols, w, h, tabSize, totalImgW, totalImgH) {
             const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            const canvasW = Math.floor(w + tabSize * 2);
-            const canvasH = Math.floor(h + tabSize * 2);
-            
+            canvas.className = 'piece';
+            const canvasW = w + 2 * tabSize;
+            const canvasH = h + 2 * tabSize;
             canvas.width = canvasW;
             canvas.height = canvasH;
-            canvas.classList.add('piece');
+
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvasW, canvasH);
+
+            const shape = [
+                (row === 0) ? 0 : (Math.random() > 0.5 ? 1 : -1),
+                (col === cols - 1) ? 0 : (Math.random() > 0.5 ? 1 : -1),
+                (row === rows - 1) ? 0 : (Math.random() > 0.5 ? 1 : -1),
+                (col === 0) ? 0 : (Math.random() > 0.5 ? 1 : -1),
+            ];
 
             const startX = tabSize;
             const startY = tabSize;
@@ -415,7 +441,6 @@
             pieces.push(canvas);
         }
 
-        // --- NOUVELLE FONCTION DE COURBE (Arrondie) ---
         function drawCurve(ctx, x1, y1, x2, y2, size) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
@@ -425,7 +450,6 @@
             const nx = -uy;
             const ny = ux;
             
-            // On réduit la largeur de la base pour un cou plus fin
             const baseW = 0.20; 
             
             const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
@@ -437,10 +461,6 @@
 
             ctx.lineTo(xBase1, yBase1);
 
-            // J'ai augmenté les facteurs de contrôle (0.3 au lieu de 0.2 et 0.2 au lieu de 0.1)
-            // Cela donne une courbe plus ample, plus "gonflée", donc plus ronde.
-            
-            // Courbe Montante
             ctx.bezierCurveTo(
                 xBase1 + ux * dist * 0.05 + nx * size * 0.35, 
                 yBase1 + uy * dist * 0.05 + ny * size * 0.35,
@@ -449,7 +469,6 @@
                 xTip, yTip
             );
 
-            // Courbe Descendante
             ctx.bezierCurveTo(
                 xTip + ux * dist * 0.15, 
                 yTip + uy * dist * 0.15,
