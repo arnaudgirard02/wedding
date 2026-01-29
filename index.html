@@ -238,93 +238,113 @@
             piecesSrc: 'guide.jpg',   
             finalSrc: 'puzzle.png',   
             rows: 3,
-            cols: 3,
-            tabSize: 20
+            cols: 4,
+            snapThresholdPercent: 12,
+            // J'ai augmenté légèrement la taille (0.24) pour compenser la rondeur
+            tabSizeFactor: 0.24, 
+            maxSafeWidth: 1600 
         };
 
         const container = document.getElementById('puzzle-container');
-        const guideDiv = document.getElementById('puzzle-guide');
-        const finalRevealDiv = document.getElementById('final-reveal');
-        const successMsg = document.getElementById('success-message');
+        const guide = document.getElementById('puzzle-guide');
+        const finalReveal = document.getElementById('final-reveal');
         const instructionText = document.getElementById('instruction-text');
-        const loadingDiv = document.getElementById('loading');
+        const successMsg = document.getElementById('success-message');
+        const loadingMsg = document.getElementById('loading');
+
+        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
+        const bgImgElement = document.getElementById('bg-img');
+        
+        function tryLoadBackground(index) {
+            if (index >= possibleBackgrounds.length) return;
+            const currentName = possibleBackgrounds[index];
+            const tester = new Image();
+            tester.onload = () => { bgImgElement.src = currentName; };
+            tester.onerror = () => { tryLoadBackground(index + 1); };
+            tester.src = currentName;
+        }
+        tryLoadBackground(0);
 
         let pieces = [];
         let lockedCount = 0;
-        let totalPieces = CONFIG.rows * CONFIG.cols;
+        const totalPieces = CONFIG.rows * CONFIG.cols;
 
-        let imgPieces = new Image();
-        let imgFinal = new Image();
-        let imagesLoaded = 0;
+        function generatePerfectShapes(rows, cols) {
+            const shapes = [];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let top = 0, right = 0, bottom = 0, left = 0;
+                    if (r > 0) top = -shapes[(r - 1) * cols + c][2];
+                    if (c < cols - 1) right = Math.random() > 0.5 ? 1 : -1;
+                    if (r < rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
+                    if (c > 0) left = -shapes[r * cols + (c - 1)][1];
+                    shapes.push([top, right, bottom, left]);
+                }
+            }
+            return shapes;
+        }
 
-        imgPieces.onload = () => {
-            imagesLoaded++;
-            if (imagesLoaded === 2) init();
-        };
-        imgFinal.onload = () => {
-            imagesLoaded++;
-            if (imagesLoaded === 2) init();
-        };
+        const imgPieces = new Image();
+        imgPieces.crossOrigin = "Anonymous"; 
         imgPieces.src = CONFIG.piecesSrc;
-        imgFinal.src = CONFIG.finalSrc;
+        
+        imgPieces.onload = () => {
+            try {
+                loadingMsg.style.display = 'none';
+                let workingWidth = imgPieces.naturalWidth;
+                let workingHeight = imgPieces.naturalHeight;
+                
+                if (workingWidth > CONFIG.maxSafeWidth) {
+                    const scale = CONFIG.maxSafeWidth / workingWidth;
+                    workingWidth = CONFIG.maxSafeWidth;
+                    workingHeight = Math.floor(imgPieces.naturalHeight * scale);
+                }
 
-        function init() {
-            const aspectRatio = imgPieces.naturalWidth / imgPieces.naturalHeight;
-            container.style.aspectRatio = `${aspectRatio}`;
-            
-            guideDiv.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
-            finalRevealDiv.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
+                const ratio = workingWidth / workingHeight;
+                container.style.aspectRatio = `${ratio}`;
+                guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
+                finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
+                
+                initPuzzle(workingWidth, workingHeight);
+            } catch (e) {
+                alert("Oups, une erreur est survenue : " + e.message);
+            }
+        };
 
-            loadingDiv.style.display = 'none';
-            generatePuzzle();
+        imgPieces.onerror = () => {
+            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
+        };
+
+        function initPuzzle(totalW, totalH) {
+            const pieceW = totalW / CONFIG.cols;
+            const pieceH = totalH / CONFIG.rows;
+            const tabSize = Math.min(pieceW, pieceH) * CONFIG.tabSizeFactor;
+            const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
+
+            for (let r = 0; r < CONFIG.rows; r++) {
+                for (let c = 0; c < CONFIG.cols; c++) {
+                    const shapeIndex = r * CONFIG.cols + c;
+                    createCanvasPiece(r, c, pieceW, pieceH, tabSize, generatedShapes[shapeIndex], totalW, totalH);
+                }
+            }
             scramblePieces();
         }
 
-        function generatePuzzle() {
-            const totalImgW = container.offsetWidth;
-            const totalImgH = container.offsetHeight;
-
-            const rows = CONFIG.rows; 
-            const cols = CONFIG.cols;
-            const w = totalImgW / cols;
-            const h = totalImgH / rows;
-            const tabSize = CONFIG.tabSize;
-
-            let shapes = [];
-            for (let row = 0; row < rows; row++) {
-                let rowShapes = [];
-                for (let col = 0; col < cols; col++) {
-                    let shape = [0, 0, 0, 0]; 
-                    if (row > 0) shape[0] = -rowShapes[col - rows];
-                    else shape[0] = 0;
-                    if (col > 0) shape[3] = -rowShapes[col - 1][1];
-                    else shape[3] = 0;
-                    if (row < rows - 1) shape[2] = (Math.random() < 0.5 ? -1 : 1);
-                    if (col < cols - 1) shape[1] = (Math.random() < 0.5 ? -1 : 1);
-                    rowShapes.push(shape);
-                }
-                shapes.push(rowShapes);
-            }
-
-            for (let row = 0; row < rows; row++) {
-                for (let col = 0; col < cols; col++) {
-                    createPiece(row, col, shapes[row][col], w, h, tabSize, totalImgW, totalImgH);
-                }
-            }
-        }
-
-        function createPiece(row, col, shape, w, h, tabSize, totalImgW, totalImgH) {
-            const canvasW = w + 2 * tabSize;
-            const canvasH = h + 2 * tabSize;
+        function createCanvasPiece(row, col, w, h, tabSize, shape, totalImgW, totalImgH) {
             const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const canvasW = Math.floor(w + tabSize * 2);
+            const canvasH = Math.floor(h + tabSize * 2);
+            
             canvas.width = canvasW;
             canvas.height = canvasH;
-            canvas.className = 'piece';
-            const ctx = canvas.getContext('2d');
+            canvas.classList.add('piece');
+
+            const startX = tabSize;
+            const startY = tabSize;
 
             ctx.beginPath();
-
-            const startX = tabSize, startY = tabSize;
             ctx.moveTo(startX, startY);
 
             if (shape[0] !== 0) drawCurve(ctx, startX, startY, startX + w, startY, shape[0] * tabSize);
@@ -395,59 +415,49 @@
             pieces.push(canvas);
         }
 
-        // --- FONCTION DE COURBE AMÉLIORÉE (Vraies oreilles arrondies de puzzle) ---
+        // --- NOUVELLE FONCTION DE COURBE (Arrondie) ---
         function drawCurve(ctx, x1, y1, x2, y2, size) {
-            // Calcul du centre et des vecteurs directionnels
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
             const dist = Math.hypot(x2 - x1, y2 - y1);
-            const ux = (x2 - x1) / dist; // vecteur unitaire direction
+            const ux = (x2 - x1) / dist;
             const uy = (y2 - y1) / dist;
-            const nx = -uy; // vecteur normal (perpendiculaire)
+            const nx = -uy;
             const ny = ux;
             
-            // AMÉLIORATION 1: Cou plus étroit (15% au lieu de 20%)
-            const neckWidth = 0.15;
+            // On réduit la largeur de la base pour un cou plus fin
+            const baseW = 0.20; 
             
-            // Points de base du cou
-            const xBase1 = x1 + ux * dist * (0.5 - neckWidth/2);
-            const yBase1 = y1 + uy * dist * (0.5 - neckWidth/2);
-            const xBase2 = x1 + ux * dist * (0.5 + neckWidth/2);
-            const yBase2 = y1 + uy * dist * (0.5 + neckWidth/2);
-            
-            // AMÉLIORATION 2: Tête plus ronde - on augmente le rayon
-            const headRadius = Math.abs(size) * 1.1; // 10% plus grand
+            const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
+            const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
+            const xBase2 = x1 + ux * dist * (0.5 + baseW/2);
+            const yBase2 = y1 + uy * dist * (0.5 + baseW/2);
             const xTip = cx + nx * size;
             const yTip = cy + ny * size;
 
-            // Point de départ
             ctx.lineTo(xBase1, yBase1);
 
-            // AMÉLIORATION 3: Courbe montante plus ronde
-            // On utilise des points de contrôle qui créent une belle courbe circulaire
-            const bulge = 0.55; // Contrôle la rondeur (plus élevé = plus rond)
+            // J'ai augmenté les facteurs de contrôle (0.3 au lieu de 0.2 et 0.2 au lieu de 0.1)
+            // Cela donne une courbe plus ample, plus "gonflée", donc plus ronde.
             
-            // Courbe montante vers la tête
+            // Courbe Montante
             ctx.bezierCurveTo(
-                xBase1 + ux * dist * 0.02 + nx * headRadius * bulge,
-                yBase1 + uy * dist * 0.02 + ny * headRadius * bulge,
-                xTip - ux * dist * 0.08 + nx * size * 0.2,
-                yTip - uy * dist * 0.08 + ny * size * 0.2,
-                xTip,
-                yTip
+                xBase1 + ux * dist * 0.05 + nx * size * 0.35, 
+                yBase1 + uy * dist * 0.05 + ny * size * 0.35,
+                xTip - ux * dist * 0.15, 
+                yTip - uy * dist * 0.15,
+                xTip, yTip
             );
 
-            // Courbe descendante depuis la tête
+            // Courbe Descendante
             ctx.bezierCurveTo(
-                xTip + ux * dist * 0.08 + nx * size * 0.2,
-                yTip + uy * dist * 0.08 + ny * size * 0.2,
-                xBase2 - ux * dist * 0.02 + nx * headRadius * bulge,
-                yBase2 - uy * dist * 0.02 + ny * headRadius * bulge,
-                xBase2,
-                yBase2
+                xTip + ux * dist * 0.15, 
+                yTip + uy * dist * 0.15,
+                xBase2 - ux * dist * 0.05 + nx * size * 0.35, 
+                yBase2 - uy * dist * 0.05 + ny * size * 0.35,
+                xBase2, yBase2
             );
 
-            // Retour au point final
             ctx.lineTo(x2, y2);
         }
 
