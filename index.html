@@ -156,18 +156,18 @@
         /* --- SUCCESS STATE --- */
         #success-message {
             position: fixed;
-            bottom: -200px;
+            bottom: -300px; /* Ajusté pour cacher le bouton aussi */
             left: 50%;
             transform: translateX(-50%);
             background: white;
-            padding: 20px 25px;
+            padding: 25px;
             border-radius: 30px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.3);
             text-align: center;
             opacity: 0;
-            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
             width: 85%;
-            max-width: 350px;
+            max-width: 400px;
             z-index: 1000;
         }
 
@@ -183,9 +183,29 @@
         }
 
         #success-message p {
-            margin: 0;
+            margin: 0 0 20px 0;
             color: #7f8c8d;
             font-size: 0.9rem;
+        }
+
+        /* --- BOUTON FORMULAIRE --- */
+        .btn-form {
+            display: inline-block;
+            background-color: #dfa668;
+            color: white;
+            text-decoration: none;
+            padding: 14px 24px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: transform 0.2s, background-color 0.2s;
+            box-shadow: 0 4px 15px rgba(223, 166, 104, 0.3);
+            pointer-events: auto; /* Important pour cliquer */
+        }
+
+        .btn-form:active {
+            transform: scale(0.95);
+            background-color: #c99359;
         }
 
         .puzzle-complete #final-reveal {
@@ -231,6 +251,7 @@
     <div id="success-message">
         <h2>Félicitations !</h2>
         <p>Vous connaissez la date et le lieu du mariage 🥰</p>
+        <a href="https://votre-formulaire-ici.com" class="btn-form">Confirmer ma présence</a>
     </div>
 
     <script>
@@ -240,7 +261,6 @@
             rows: 3,
             cols: 4,
             snapThresholdPercent: 12,
-            // J'ai augmenté légèrement la taille (0.24) pour compenser la rondeur
             tabSizeFactor: 0.24, 
             maxSafeWidth: 1600 
         };
@@ -415,7 +435,6 @@
             pieces.push(canvas);
         }
 
-        // --- NOUVELLE FONCTION DE COURBE (Arrondie) ---
         function drawCurve(ctx, x1, y1, x2, y2, size) {
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
@@ -424,23 +443,14 @@
             const uy = (y2 - y1) / dist;
             const nx = -uy;
             const ny = ux;
-            
-            // On réduit la largeur de la base pour un cou plus fin
             const baseW = 0.20; 
-            
             const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
             const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
             const xBase2 = x1 + ux * dist * (0.5 + baseW/2);
             const yBase2 = y1 + uy * dist * (0.5 + baseW/2);
             const xTip = cx + nx * size;
             const yTip = cy + ny * size;
-
             ctx.lineTo(xBase1, yBase1);
-
-            // J'ai augmenté les facteurs de contrôle (0.3 au lieu de 0.2 et 0.2 au lieu de 0.1)
-            // Cela donne une courbe plus ample, plus "gonflée", donc plus ronde.
-            
-            // Courbe Montante
             ctx.bezierCurveTo(
                 xBase1 + ux * dist * 0.05 + nx * size * 0.35, 
                 yBase1 + uy * dist * 0.05 + ny * size * 0.35,
@@ -448,8 +458,6 @@
                 yTip - uy * dist * 0.15,
                 xTip, yTip
             );
-
-            // Courbe Descendante
             ctx.bezierCurveTo(
                 xTip + ux * dist * 0.15, 
                 yTip + uy * dist * 0.15,
@@ -457,7 +465,6 @@
                 yBase2 - uy * dist * 0.05 + ny * size * 0.35,
                 xBase2, yBase2
             );
-
             ctx.lineTo(x2, y2);
         }
 
@@ -507,21 +514,17 @@
 
         function addDragListeners(el) {
             let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
-            
             const onStart = (e) => {
                 if (el.classList.contains('locked')) return; 
                 if (e.cancelable && e.type === 'touchstart') e.preventDefault();
-                
                 isDragging = true;
                 el.classList.add('dragging');
                 container.appendChild(el); 
-
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
                 startX = clientX; startY = clientY;
                 initialLeft = el.offsetLeft; initialTop = el.offsetTop;
             };
-            
             const onMove = (e) => {
                 if (!isDragging) return;
                 e.preventDefault(); 
@@ -532,14 +535,12 @@
                 el.style.left = `${initialLeft + dx}px`;
                 el.style.top = `${initialTop + dy}px`;
             };
-            
             const onEnd = () => {
                 if (!isDragging) return;
                 isDragging = false;
                 el.classList.remove('dragging');
                 checkSnap(el);
             };
-
             el.addEventListener('mousedown', onStart); 
             el.addEventListener('touchstart', onStart, {passive:false});
             window.addEventListener('mousemove', onMove); 
@@ -558,10 +559,7 @@
             const dist = Math.hypot(currentX - targetX, currentY - targetY);
             const isMobile = window.innerWidth < 768;
             const threshold = isMobile ? 8 : 4; 
-
-            if (dist < threshold) {
-                snapPiece(el, targetX, targetY);
-            }
+            if (dist < threshold) snapPiece(el, targetX, targetY);
         }
 
         function snapPiece(el, x, y) {
