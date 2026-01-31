@@ -6,7 +6,6 @@
     <title>Save the Date - Puzzle</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        /* --- RESET & BASE --- */
         * {
             box-sizing: border-box;
             user-select: none;
@@ -43,7 +42,6 @@
             touch-action: none;
         }
 
-        /* --- ARRIÈRE-PLAN --- */
         #background-container {
             position: fixed;
             bottom: 0;
@@ -64,7 +62,6 @@
             opacity: 1;
         }
 
-        /* --- MAIN GAME WRAPPER --- */
         #game-wrapper {
             display: flex;
             flex-direction: column;
@@ -77,7 +74,6 @@
             z-index: 10;
         }
 
-        /* --- UI ELEMENTS --- */
         #game-ui {
             text-align: center;
             padding: 10px 0 15px 0;
@@ -103,7 +99,6 @@
             color: #dfa668;
         }
 
-        /* --- PUZZLE AREA (Zone de jeu complète) --- */
         #puzzle-area {
             position: relative;
             flex: 1;
@@ -111,11 +106,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 0; /* Important pour flex shrink */
+            min-height: 0;
             overflow: visible;
         }
 
-        /* --- PUZZLE CONTAINER --- */
         #puzzle-container {
             position: relative;
             z-index: 50;
@@ -123,10 +117,8 @@
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: background-color 0.5s;
-            /* Dimensions calculées par JS */
         }
 
-        /* Le guide (image de fond atténuée - SANS DATE) */
         #puzzle-guide {
             position: absolute;
             top: 0;
@@ -141,7 +133,6 @@
             filter: blur(5px);
         }
 
-        /* L'image de RÉVÉLATION (AVEC DATE) */
         #final-reveal {
             position: absolute;
             top: 0;
@@ -156,15 +147,12 @@
             border-radius: 8px;
         }
 
-        /* --- PIECES --- */
         .piece {
             position: absolute;
             cursor: grab;
             z-index: 60;
             touch-action: none;
-            transform-origin: top left;
-            /* Pas de box-shadow car ça crée un carré autour du canvas */
-            /* On utilise filter drop-shadow seulement pour le dragging */
+            /* Pas de transform, pas de resize CSS */
         }
 
         .piece.dragging {
@@ -177,9 +165,9 @@
             z-index: 100;
             cursor: default;
             pointer-events: none;
+            filter: none;
         }
 
-        /* --- SUCCESS STATE --- */
         #success-message {
             position: fixed;
             bottom: -150px;
@@ -214,36 +202,21 @@
             font-size: clamp(0.85rem, 3vw, 0.95rem);
         }
 
-        .puzzle-complete #final-reveal {
-            opacity: 1;
-        }
-
-        .puzzle-complete #puzzle-guide {
-            opacity: 0;
-        }
-
+        .puzzle-complete #final-reveal { opacity: 1; }
+        .puzzle-complete #puzzle-guide { opacity: 0; }
         .puzzle-complete#puzzle-container {
             background-color: transparent;
             box-shadow: 0 15px 40px rgba(0,0,0,0.2);
         }
 
-        /* Responsive adjustments */
         @media (max-height: 500px) and (orientation: landscape) {
-            #game-ui {
-                padding: 5px 0 10px 0;
-            }
-            h1 {
-                font-size: 0.85rem;
-            }
-            #game-wrapper {
-                padding: 10px;
-            }
+            #game-ui { padding: 5px 0 10px 0; }
+            h1 { font-size: 0.85rem; }
+            #game-wrapper { padding: 10px; }
         }
-
     </style>
 </head>
 <body>
-
     <div id="background-container">
         <img id="bg-img" src="" alt="">
     </div>
@@ -272,43 +245,71 @@
             finalSrc: 'puzzle.png',
             rows: 3,
             cols: 4,
-            snapThreshold: 0.15,
             tabSizePercent: 20
         };
 
-        // DOM Elements
-        const gameWrapper = document.getElementById('game-wrapper');
         const puzzleArea = document.getElementById('puzzle-area');
         const container = document.getElementById('puzzle-container');
         const guide = document.getElementById('puzzle-guide');
         const finalReveal = document.getElementById('final-reveal');
         const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
+        const bgImgElement = document.getElementById('bg-img');
 
         // Background loading
         const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
-        const bgImgElement = document.getElementById('bg-img');
-
         function tryLoadBackground(index) {
             if (index >= possibleBackgrounds.length) return;
-            const currentName = possibleBackgrounds[index];
             const tester = new Image();
-            tester.onload = () => { bgImgElement.src = currentName; };
+            tester.onload = () => { bgImgElement.src = possibleBackgrounds[index]; };
             tester.onerror = () => { tryLoadBackground(index + 1); };
-            tester.src = currentName;
+            tester.src = possibleBackgrounds[index];
         }
         tryLoadBackground(0);
 
         // Game state
         let pieces = [];
+        let piecesData = []; // Stocke row, col, shape, locked, position relative (en %)
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
-        let imageRatio = 4/3; // Default, will be updated
-        let containerRect = null;
+        let imageRatio = 4/3;
+        let generatedShapes = null;
         let isInitialized = false;
-        let currentScale = 1;
 
-        // Génération des formes des pièces
+        // Image loading
+        const imgPieces = new Image();
+        imgPieces.src = CONFIG.piecesSrc;
+
+        imgPieces.onload = () => {
+            imageRatio = imgPieces.width / imgPieces.height;
+            guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
+            finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
+
+            // Générer les formes une seule fois
+            generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
+
+            // Initialiser les données des pièces
+            for (let r = 0; r < CONFIG.rows; r++) {
+                for (let c = 0; c < CONFIG.cols; c++) {
+                    piecesData.push({
+                        row: r,
+                        col: c,
+                        shape: generatedShapes[r * CONFIG.cols + c],
+                        locked: false,
+                        // Position en pourcentage du conteneur (sera définie au scramble)
+                        xPercent: 0,
+                        yPercent: 0
+                    });
+                }
+            }
+
+            initPuzzle();
+        };
+
+        imgPieces.onerror = () => {
+            alert("Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
+        };
+
         function generatePerfectShapes(rows, cols) {
             const shapes = [];
             for (let r = 0; r < rows; r++) {
@@ -324,22 +325,6 @@
             return shapes;
         }
 
-        // Image loading
-        const imgPieces = new Image();
-        imgPieces.src = CONFIG.piecesSrc;
-
-        imgPieces.onload = () => {
-            imageRatio = imgPieces.width / imgPieces.height;
-            guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
-            finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
-            initPuzzle();
-        };
-
-        imgPieces.onerror = () => {
-            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
-        };
-
-        // Calcul de la taille optimale du conteneur
         function calculateContainerSize() {
             const areaRect = puzzleArea.getBoundingClientRect();
             const padding = 10;
@@ -348,18 +333,14 @@
 
             let containerWidth, containerHeight;
 
-            // Calculer en respectant le ratio de l'image
             if (availableWidth / availableHeight > imageRatio) {
-                // Limité par la hauteur
                 containerHeight = availableHeight;
                 containerWidth = containerHeight * imageRatio;
             } else {
-                // Limité par la largeur
                 containerWidth = availableWidth;
                 containerHeight = containerWidth / imageRatio;
             }
 
-            // Limiter à 600px max sur desktop
             const maxWidth = Math.min(600, window.innerWidth * 0.9);
             if (containerWidth > maxWidth) {
                 containerWidth = maxWidth;
@@ -369,294 +350,251 @@
             return { width: containerWidth, height: containerHeight };
         }
 
-        // Application de la taille du conteneur
-        function applyContainerSize() {
+        function initPuzzle() {
             const size = calculateContainerSize();
             container.style.width = `${size.width}px`;
             container.style.height = `${size.height}px`;
-            containerRect = container.getBoundingClientRect();
-        }
 
-        // Initialisation du puzzle
-        function initPuzzle() {
-            applyContainerSize();
-
-            const basePieceW = imgPieces.width / CONFIG.cols;
-            const basePieceH = imgPieces.height / CONFIG.rows;
-            const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
-
-            const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
-
-            for (let r = 0; r < CONFIG.rows; r++) {
-                for (let c = 0; c < CONFIG.cols; c++) {
-                    const shapeIndex = r * CONFIG.cols + c;
-                    createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, generatedShapes[shapeIndex]);
-                }
-            }
+            // Créer les pièces à la bonne taille directement
+            createAllPieces(size.width, size.height);
 
             isInitialized = true;
 
-            // Attendre que le DOM soit complètement rendu
+            // Mélanger les pièces
             requestAnimationFrame(() => {
-                updatePieceSizes();
                 scramblePieces();
             });
         }
 
-        function createCanvasPiece(row, col, w, h, tabSize, shape) {
+        function createAllPieces(containerW, containerH) {
+            // Supprimer les anciennes pièces
+            pieces.forEach(p => p.remove());
+            pieces = [];
+
+            // Calculer les dimensions des pièces dans le conteneur
+            const scale = containerW / imgPieces.width;
+            const basePieceW = imgPieces.width / CONFIG.cols;
+            const basePieceH = imgPieces.height / CONFIG.rows;
+            const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
+
+            // Dimensions finales des pièces (en pixels, à la taille du conteneur)
+            const scaledPieceW = basePieceW * scale;
+            const scaledPieceH = basePieceH * scale;
+            const scaledTabSize = tabSize * scale;
+            const totalPieceW = scaledPieceW + scaledTabSize * 2;
+            const totalPieceH = scaledPieceH + scaledTabSize * 2;
+
+            for (let i = 0; i < piecesData.length; i++) {
+                const data = piecesData[i];
+                const canvas = createSinglePiece(
+                    data.row, data.col,
+                    scaledPieceW, scaledPieceH,
+                    scaledTabSize,
+                    data.shape,
+                    scale
+                );
+
+                canvas.dataset.index = i;
+
+                // Appliquer la position
+                if (data.locked) {
+                    // Position exacte pour les pièces lockées
+                    const targetX = data.col * scaledPieceW - scaledTabSize;
+                    const targetY = data.row * scaledPieceH - scaledTabSize;
+                    canvas.style.left = `${targetX}px`;
+                    canvas.style.top = `${targetY}px`;
+                    canvas.classList.add('locked');
+                } else if (data.xPercent !== undefined && data.yPercent !== undefined) {
+                    // Position relative pour les pièces non lockées
+                    canvas.style.left = `${data.xPercent * containerW}px`;
+                    canvas.style.top = `${data.yPercent * containerH}px`;
+                }
+
+                addDragListeners(canvas, i);
+                container.appendChild(canvas);
+                pieces.push(canvas);
+            }
+        }
+
+        function createSinglePiece(row, col, w, h, tabSize, shape, scale) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
+
             const totalW = w + tabSize * 2;
             const totalH = h + tabSize * 2;
 
+            // Créer le canvas à la taille EXACTE voulue
             canvas.width = totalW;
             canvas.height = totalH;
             canvas.classList.add('piece');
 
+            // Dessiner la pièce
             ctx.save();
             ctx.beginPath();
+
             const offsetX = tabSize;
             const offsetY = tabSize;
             let x = offsetX, y = offsetY;
             ctx.moveTo(x, y);
 
-            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y);
+            // Dessiner les bords avec tabs
+            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize);
+            else ctx.lineTo(x + w, y);
             x += w;
-            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h);
+
+            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize);
+            else ctx.lineTo(x, y + h);
             y += h;
-            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y);
+
+            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize);
+            else ctx.lineTo(x - w, y);
             x -= w;
-            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h);
+
+            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize);
+            else ctx.lineTo(x, y - h);
 
             ctx.closePath();
             ctx.clip();
-            ctx.drawImage(imgPieces, col * w - offsetX, row * h - offsetY, totalW, totalH, 0, 0, totalW, totalH);
-            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
+
+            // Dessiner l'image source à la bonne échelle
+            const srcX = col * (imgPieces.width / CONFIG.cols) - (tabSize / scale);
+            const srcY = row * (imgPieces.height / CONFIG.rows) - (tabSize / scale);
+            const srcW = totalW / scale;
+            const srcH = totalH / scale;
+
+            ctx.drawImage(imgPieces, srcX, srcY, srcW, srcH, 0, 0, totalW, totalH);
+
+            // Contours
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
             ctx.restore();
 
-            // Stocker les données de la pièce
-            canvas.dataset.row = row;
-            canvas.dataset.col = col;
-            canvas.dataset.tabSize = tabSize;
-            canvas.dataset.originalWidth = totalW;
-            canvas.dataset.originalHeight = totalH;
-            canvas.dataset.baseWidth = w;
-            canvas.dataset.baseHeight = h;
-            canvas.dataset.scale = 1;
-
-            // Important: transform-origin en haut à gauche pour simplifier le positionnement
-            canvas.style.transformOrigin = 'top left';
-
-            addDragListeners(canvas);
-            container.appendChild(canvas);
-            pieces.push(canvas);
+            return canvas;
         }
 
         function drawTab(ctx, x, y, dx, dy, size) {
-            const l = Math.sqrt(dx*dx + dy*dy), neck = l * 0.35;
-            const ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
-            const x1 = x + ux * (l - neck)/2, y1 = y + uy * (l - neck)/2;
-            const x2 = x + ux * (l + neck)/2, y2 = y + uy * (l + neck)/2;
+            const l = Math.sqrt(dx*dx + dy*dy);
+            const neck = l * 0.35;
+            const ux = dx / l, uy = dy / l;
+            const nx = -uy, ny = ux;
+
+            const x1 = x + ux * (l - neck)/2;
+            const y1 = y + uy * (l - neck)/2;
+            const x2 = x + ux * (l + neck)/2;
+            const y2 = y + uy * (l + neck)/2;
+
             ctx.lineTo(x1, y1);
-            const h = Math.abs(size), sign = size > 0 ? 1 : -1;
-            const cx1 = x1 + nx * sign * h * 0.2, cy1 = y1 + ny * sign * h * 0.2;
-            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h, ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
-            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h, ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
-            const cx2 = x2 + nx * sign * h * 0.2, cy2 = y2 + ny * sign * h * 0.2;
+
+            const h = Math.abs(size);
+            const sign = size > 0 ? 1 : -1;
+
+            const cx1 = x1 + nx * sign * h * 0.2;
+            const cy1 = y1 + ny * sign * h * 0.2;
+            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h;
+            const ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
+            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h;
+            const ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
+            const cx2 = x2 + nx * sign * h * 0.2;
+            const cy2 = y2 + ny * sign * h * 0.2;
+
             ctx.bezierCurveTo(cx1, cy1, tx1, ty1, x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h);
             ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
             ctx.lineTo(x + dx, y + dy);
         }
 
-        // Mise à jour de la taille des pièces selon le conteneur
-        function updatePieceSizes() {
-            if (!isInitialized) return;
-
-            containerRect = container.getBoundingClientRect();
-            // On utilise un scale uniforme pour éviter les distorsions
-            const scale = containerRect.width / imgPieces.width;
-
-            // Stocker le scale actuel pour les calculs de position
-            currentScale = scale;
-
-            pieces.forEach(piece => {
-                // Utiliser transform scale au lieu de width/height CSS
-                // Cela évite les problèmes de rendu sur iOS Safari
-                if (!piece.classList.contains('dragging')) {
-                    piece.style.transform = `scale(${scale})`;
-                }
-                piece.dataset.scale = scale;
-            });
-        }
-
-        // Repositionner les pièces lockées après resize
-        function repositionLockedPieces() {
-            if (!isInitialized) return;
-
-            containerRect = container.getBoundingClientRect();
-            const scale = containerRect.width / imgPieces.width;
-
-            pieces.forEach(piece => {
-                if (!piece.classList.contains('locked')) return;
-
-                const row = parseInt(piece.dataset.row);
-                const col = parseInt(piece.dataset.col);
-                const tabSize = parseFloat(piece.dataset.tabSize);
-                const baseW = parseFloat(piece.dataset.baseWidth);
-                const baseH = parseFloat(piece.dataset.baseHeight);
-
-                const targetXPx = (col * baseW - tabSize) * scale;
-                const targetYPx = (row * baseH - tabSize) * scale;
-
-                piece.style.left = `${targetXPx}px`;
-                piece.style.top = `${targetYPx}px`;
-                piece.style.transform = `scale(${scale})`;
-                piece.dataset.scale = scale;
-            });
-        }
-
-        // Mélange intelligent des pièces
         function scramblePieces() {
-            if (!isInitialized) return;
-
-            containerRect = container.getBoundingClientRect();
-
-            // Zone de jeu disponible (en dehors du conteneur)
-            const zones = getScrambleZones();
-
-            pieces.forEach(piece => {
-                if (piece.classList.contains('locked')) return;
-
-                // Calculer la taille réelle avec le scale
-                const originalW = parseFloat(piece.dataset.originalWidth);
-                const originalH = parseFloat(piece.dataset.originalHeight);
-                const scale = parseFloat(piece.dataset.scale) || currentScale;
-                const pW = originalW * scale;
-                const pH = originalH * scale;
-
-                // Choisir une zone aléatoire avec pondération
-                const zone = selectZone(zones, pW, pH);
-
-                if (zone) {
-                    // Position aléatoire dans la zone
-                    const pageX = zone.minX + Math.random() * Math.max(0, zone.maxX - zone.minX - pW);
-                    const pageY = zone.minY + Math.random() * Math.max(0, zone.maxY - zone.minY - pH);
-
-                    // Convertir en coordonnées relatives au conteneur
-                    piece.style.left = `${pageX - containerRect.left}px`;
-                    piece.style.top = `${pageY - containerRect.top}px`;
-                } else {
-                    // Fallback: placer autour du conteneur
-                    const angle = Math.random() * Math.PI * 2;
-                    const distance = Math.max(containerRect.width, containerRect.height) * 0.6;
-                    const centerX = containerRect.width / 2;
-                    const centerY = containerRect.height / 2;
-
-                    piece.style.left = `${centerX + Math.cos(angle) * distance - pW/2}px`;
-                    piece.style.top = `${centerY + Math.sin(angle) * distance - pH/2}px`;
-                }
-            });
-        }
-
-        // Calculer les zones disponibles pour le mélange
-        function getScrambleZones() {
+            const containerRect = container.getBoundingClientRect();
             const winW = window.innerWidth;
             const winH = window.innerHeight;
-            const padding = 10;
             const headerHeight = document.getElementById('game-ui').offsetHeight + 20;
+            const padding = 15;
 
-            const zones = [];
+            pieces.forEach((piece, i) => {
+                const data = piecesData[i];
+                if (data.locked) return;
 
-            // Zone gauche
-            if (containerRect.left > 100) {
-                zones.push({
-                    minX: padding,
-                    maxX: containerRect.left - padding,
-                    minY: headerHeight,
-                    maxY: winH - padding,
-                    weight: containerRect.left - padding
-                });
-            }
+                const pW = piece.width;
+                const pH = piece.height;
 
-            // Zone droite
-            if (winW - containerRect.right > 100) {
-                zones.push({
-                    minX: containerRect.right + padding,
-                    maxX: winW - padding,
-                    minY: headerHeight,
-                    maxY: winH - padding,
-                    weight: winW - containerRect.right - padding
-                });
-            }
+                // Zones disponibles
+                const zones = [];
 
-            // Zone bas
-            if (winH - containerRect.bottom > 80) {
-                zones.push({
-                    minX: padding,
-                    maxX: winW - padding,
-                    minY: containerRect.bottom + padding,
-                    maxY: winH - padding,
-                    weight: (winH - containerRect.bottom) * 2 // Pondération plus forte pour le bas
-                });
-            }
+                // Bas
+                if (winH - containerRect.bottom > pH + 20) {
+                    zones.push({
+                        minX: padding, maxX: winW - pW - padding,
+                        minY: containerRect.bottom + 10, maxY: winH - pH - padding
+                    });
+                }
 
-            // Zone haut (entre titre et conteneur)
-            if (containerRect.top - headerHeight > 80) {
-                zones.push({
-                    minX: padding,
-                    maxX: winW - padding,
-                    minY: headerHeight,
-                    maxY: containerRect.top - padding,
-                    weight: containerRect.top - headerHeight
-                });
-            }
+                // Gauche
+                if (containerRect.left > pW + 20) {
+                    zones.push({
+                        minX: padding, maxX: containerRect.left - pW - 10,
+                        minY: headerHeight, maxY: winH - pH - padding
+                    });
+                }
 
-            // Si aucune zone suffisante, utiliser tout l'écran (mode mobile compact)
-            if (zones.length === 0) {
-                zones.push({
-                    minX: padding,
-                    maxX: winW - padding,
-                    minY: headerHeight,
-                    maxY: winH - padding,
-                    weight: 1
-                });
-            }
+                // Droite
+                if (winW - containerRect.right > pW + 20) {
+                    zones.push({
+                        minX: containerRect.right + 10, maxX: winW - pW - padding,
+                        minY: headerHeight, maxY: winH - pH - padding
+                    });
+                }
 
-            return zones;
+                // Haut (entre titre et conteneur)
+                if (containerRect.top - headerHeight > pH + 20) {
+                    zones.push({
+                        minX: padding, maxX: winW - pW - padding,
+                        minY: headerHeight, maxY: containerRect.top - pH - 10
+                    });
+                }
+
+                // Fallback : sur tout l'écran
+                if (zones.length === 0) {
+                    zones.push({
+                        minX: padding, maxX: winW - pW - padding,
+                        minY: headerHeight, maxY: winH - pH - padding
+                    });
+                }
+
+                // Choisir une zone au hasard
+                const zone = zones[Math.floor(Math.random() * zones.length)];
+
+                // Position aléatoire dans la zone
+                const pageX = zone.minX + Math.random() * Math.max(0, zone.maxX - zone.minX);
+                const pageY = zone.minY + Math.random() * Math.max(0, zone.maxY - zone.minY);
+
+                // Convertir en position relative au conteneur
+                const relX = pageX - containerRect.left;
+                const relY = pageY - containerRect.top;
+
+                piece.style.left = `${relX}px`;
+                piece.style.top = `${relY}px`;
+
+                // Stocker en pourcentage pour le resize
+                data.xPercent = relX / containerRect.width;
+                data.yPercent = relY / containerRect.height;
+            });
         }
 
-        // Sélectionner une zone avec pondération
-        function selectZone(zones, pieceW, pieceH) {
-            // Filtrer les zones qui peuvent contenir la pièce
-            const validZones = zones.filter(z =>
-                (z.maxX - z.minX) >= pieceW &&
-                (z.maxY - z.minY) >= pieceH
-            );
-
-            if (validZones.length === 0) return zones[0]; // Fallback
-
-            const totalWeight = validZones.reduce((sum, z) => sum + z.weight, 0);
-            let random = Math.random() * totalWeight;
-
-            for (const zone of validZones) {
-                random -= zone.weight;
-                if (random <= 0) return zone;
-            }
-
-            return validZones[0];
-        }
-
-        // Gestion du drag & drop
-        function addDragListeners(el) {
+        function addDragListeners(el, index) {
             let startX = 0, startY = 0, initialLeft = 0, initialTop = 0;
             let isDragging = false;
             let hasMoved = false;
 
             const onStart = (e) => {
-                if (el.classList.contains('locked')) return;
+                if (piecesData[index].locked) return;
 
                 e.preventDefault();
+                e.stopPropagation();
+
                 isDragging = true;
                 hasMoved = false;
                 el.classList.add('dragging');
@@ -668,10 +606,6 @@
                 startY = clientY;
                 initialLeft = el.offsetLeft;
                 initialTop = el.offsetTop;
-
-                // Appliquer un scale légèrement plus grand pendant le drag
-                const baseScale = parseFloat(el.dataset.scale) || currentScale;
-                el.style.transform = `scale(${baseScale * 1.08})`;
             };
 
             const onMove = (e) => {
@@ -695,75 +629,70 @@
                 isDragging = false;
                 el.classList.remove('dragging');
 
-                // Remettre le scale normal
-                const baseScale = parseFloat(el.dataset.scale) || currentScale;
-                el.style.transform = `scale(${baseScale})`;
-
                 if (hasMoved) {
-                    checkSnap(el);
+                    checkSnap(el, index);
                 }
+
+                // Mettre à jour la position en pourcentage
+                const containerRect = container.getBoundingClientRect();
+                piecesData[index].xPercent = el.offsetLeft / containerRect.width;
+                piecesData[index].yPercent = el.offsetTop / containerRect.height;
             };
 
-            // Mouse events
             el.addEventListener('mousedown', onStart);
-
-            // Touch events avec options passive: false pour permettre preventDefault
             el.addEventListener('touchstart', onStart, { passive: false });
 
-            // Global move/end events
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('touchmove', onMove, { passive: false });
-            window.addEventListener('mouseup', onEnd);
-            window.addEventListener('touchend', onEnd);
-            window.addEventListener('touchcancel', onEnd);
+            // Utiliser des gestionnaires séparés pour chaque pièce
+            const Doc = document;
+            Doc.addEventListener('mousemove', onMove);
+            Doc.addEventListener('touchmove', onMove, { passive: false });
+            Doc.addEventListener('mouseup', onEnd);
+            Doc.addEventListener('touchend', onEnd);
+            Doc.addEventListener('touchcancel', onEnd);
         }
 
-        // Vérification du snap
-        function checkSnap(el) {
-            containerRect = container.getBoundingClientRect();
+        function checkSnap(el, index) {
+            const data = piecesData[index];
+            const containerRect = container.getBoundingClientRect();
 
-            const row = parseInt(el.dataset.row);
-            const col = parseInt(el.dataset.col);
-            const tabSize = parseFloat(el.dataset.tabSize);
-            const baseW = parseFloat(el.dataset.baseWidth);
-            const baseH = parseFloat(el.dataset.baseHeight);
-
-            // Scale actuel
+            // Calculer les dimensions actuelles
             const scale = containerRect.width / imgPieces.width;
+            const basePieceW = imgPieces.width / CONFIG.cols;
+            const basePieceH = imgPieces.height / CONFIG.rows;
+            const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
+
+            const scaledPieceW = basePieceW * scale;
+            const scaledPieceH = basePieceH * scale;
+            const scaledTabSize = tabSize * scale;
 
             // Position cible
-            const targetXPx = (col * baseW - tabSize) * scale;
-            const targetYPx = (row * baseH - tabSize) * scale;
+            const targetX = data.col * scaledPieceW - scaledTabSize;
+            const targetY = data.row * scaledPieceH - scaledTabSize;
 
             // Position actuelle
-            const currentXPx = el.offsetLeft;
-            const currentYPx = el.offsetTop;
+            const currentX = el.offsetLeft;
+            const currentY = el.offsetTop;
 
             // Distance
-            const distPx = Math.sqrt(
-                Math.pow(currentXPx - targetXPx, 2) +
-                Math.pow(currentYPx - targetYPx, 2)
+            const dist = Math.sqrt(
+                Math.pow(currentX - targetX, 2) +
+                Math.pow(currentY - targetY, 2)
             );
 
-            // Seuil adaptatif basé sur la taille de la pièce (avec scale)
-            const originalW = parseFloat(el.dataset.originalWidth);
-            const pieceSize = originalW * scale;
-            const thresholdPx = Math.max(25, pieceSize * 0.3);
+            // Seuil : 30% de la taille d'une pièce, minimum 25px
+            const threshold = Math.max(25, scaledPieceW * 0.3);
 
-            if (distPx < thresholdPx) {
-                snapPiece(el, targetXPx, targetYPx);
+            if (dist < threshold) {
+                snapPiece(el, index, targetX, targetY);
             }
         }
 
-        function snapPiece(el, xPx, yPx) {
-            el.style.left = `${xPx}px`;
-            el.style.top = `${yPx}px`;
-
-            // Appliquer le scale normal (pas d'agrandissement)
-            const baseScale = parseFloat(el.dataset.scale) || currentScale;
-            el.style.transform = `scale(${baseScale})`;
-
+        function snapPiece(el, index, targetX, targetY) {
+            el.style.left = `${targetX}px`;
+            el.style.top = `${targetY}px`;
             el.classList.add('locked');
+
+            piecesData[index].locked = true;
             lockedCount++;
 
             if (lockedCount === totalPieces) {
@@ -785,13 +714,9 @@
         function triggerConfetti() {
             const count = 200;
             const defaults = { origin: { y: 1 }, zIndex: 9999 };
-
             function fire(ratio, opts) {
-                confetti(Object.assign({}, defaults, opts, {
-                    particleCount: Math.floor(count * ratio)
-                }));
+                confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) }));
             }
-
             fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
             fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
             fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
@@ -799,70 +724,24 @@
             fire(0.1, { spread: 120, startVelocity: 45, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
         }
 
-        // Gestion du redimensionnement
+        // Gestion du resize : recréer les pièces à la nouvelle taille
         let resizeTimeout;
         function handleResize() {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
                 if (!isInitialized) return;
 
-                applyContainerSize();
-                updatePieceSizes();
-                repositionLockedPieces();
+                const size = calculateContainerSize();
+                container.style.width = `${size.width}px`;
+                container.style.height = `${size.height}px`;
 
-                // Repositionner les pièces non lockées si elles sont hors écran
-                repositionOutOfBoundsPieces();
-            }, 100);
+                // Recréer toutes les pièces à la nouvelle taille
+                createAllPieces(size.width, size.height);
+            }, 150);
         }
 
-        // Repositionner les pièces qui seraient hors de l'écran
-        function repositionOutOfBoundsPieces() {
-            const winW = window.innerWidth;
-            const winH = window.innerHeight;
-            containerRect = container.getBoundingClientRect();
-
-            pieces.forEach(piece => {
-                if (piece.classList.contains('locked')) return;
-
-                // Calculer la taille réelle avec le scale
-                const originalW = parseFloat(piece.dataset.originalWidth);
-                const originalH = parseFloat(piece.dataset.originalHeight);
-                const scale = parseFloat(piece.dataset.scale) || currentScale;
-                const pW = originalW * scale;
-                const pH = originalH * scale;
-
-                // Calculer la position réelle de la pièce
-                const pieceLeft = containerRect.left + piece.offsetLeft;
-                const pieceTop = containerRect.top + piece.offsetTop;
-
-                // Vérifier si la pièce est visible
-                const isVisible = (
-                    pieceLeft + pW > 0 &&
-                    pieceLeft < winW &&
-                    pieceTop + pH > 0 &&
-                    pieceTop < winH
-                );
-
-                if (!isVisible) {
-                    // Replacer la pièce dans une zone visible
-                    const zones = getScrambleZones();
-                    const zone = selectZone(zones, pW, pH);
-
-                    if (zone) {
-                        const pageX = zone.minX + Math.random() * Math.max(0, zone.maxX - zone.minX - pW);
-                        const pageY = zone.minY + Math.random() * Math.max(0, zone.maxY - zone.minY - pH);
-
-                        piece.style.left = `${pageX - containerRect.left}px`;
-                        piece.style.top = `${pageY - containerRect.top}px`;
-                    }
-                }
-            });
-        }
-
-        // Event listeners
         window.addEventListener('resize', handleResize);
         window.addEventListener('orientationchange', () => {
-            // Attendre que l'orientation soit complètement changée
             setTimeout(handleResize, 300);
         });
 
@@ -882,7 +761,6 @@
             }
             lastTouchEnd = now;
         }, { passive: false });
-
     </script>
 </body>
 </html>
