@@ -161,22 +161,21 @@
             position: absolute;
             cursor: grab;
             z-index: 60;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            transition: box-shadow 0.3s ease;
             touch-action: none;
             transform-origin: top left;
+            /* Pas de box-shadow car ça crée un carré autour du canvas */
+            /* On utilise filter drop-shadow seulement pour le dragging */
         }
 
         .piece.dragging {
             z-index: 999;
             cursor: grabbing;
-            box-shadow: 0 15px 30px rgba(0,0,0,0.4);
+            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.3));
         }
 
         .piece.locked {
             z-index: 100;
             cursor: default;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             pointer-events: none;
         }
 
