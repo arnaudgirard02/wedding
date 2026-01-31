@@ -355,12 +355,16 @@
             ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
 
-            canvas.style.width = `${(totalW / (imgPieces.width)) * 100}%`;
+            // Stockage des dimensions réelles pour le calcul de position
+            canvas.dataset.pieceWidth = totalW;
+            canvas.dataset.pieceHeight = totalH;
+            canvas.dataset.row = row;
+            canvas.dataset.col = col;
+            canvas.dataset.tabSize = tabSize;
+
+            canvas.style.position = 'absolute';
+            canvas.style.width = `${(totalW / (imgPieces.width + tabSize * 2 * CONFIG.cols)) * 100}%`;
             canvas.style.height = 'auto';
-            const pctPerPixelX = 100 / imgPieces.width;
-            const pctPerPixelY = 100 / imgPieces.height;
-            canvas.dataset.targetX = (col * w - tabSize) * pctPerPixelX;
-            canvas.dataset.targetY = (row * h - tabSize) * pctPerPixelY;
 
             addDragListeners(canvas);
             container.appendChild(canvas);
@@ -477,26 +481,45 @@
         }
 
         function checkSnap(el) {
-            const containerW = container.offsetWidth;
-            const containerH = container.offsetHeight;
-            const currentX = (el.offsetLeft / containerW) * 100;
-            const currentY = (el.offsetTop / containerH) * 100;
-            const targetX = parseFloat(el.dataset.targetX);
-            const targetY = parseFloat(el.dataset.targetY);
-            const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
+            const containerRect = container.getBoundingClientRect();
+            const row = parseInt(el.dataset.row);
+            const col = parseInt(el.dataset.col);
+            const tabSize = parseFloat(el.dataset.tabSize);
             
-            // Seuil augmenté sur mobile (20) pour faciliter le jeu au doigt
+            // Calculer la taille d'une pièce de base (sans tabs) dans le conteneur actuel
+            const basePieceW = imgPieces.width / CONFIG.cols;
+            const basePieceH = imgPieces.height / CONFIG.rows;
+            
+            // Ratio entre la taille du conteneur et l'image originale
+            const scaleX = containerRect.width / imgPieces.width;
+            const scaleY = containerRect.height / imgPieces.height;
+            
+            // Position cible en pixels absolus dans le conteneur
+            const targetXPx = (col * basePieceW - tabSize) * scaleX;
+            const targetYPx = (row * basePieceH - tabSize) * scaleY;
+            
+            // Position actuelle de la pièce
+            const currentXPx = el.offsetLeft;
+            const currentYPx = el.offsetTop;
+            
+            // Distance en pixels
+            const distPx = Math.sqrt(
+                Math.pow(currentXPx - targetXPx, 2) + 
+                Math.pow(currentYPx - targetYPx, 2)
+            );
+            
+            // Seuil en pixels (plus tolérant sur mobile)
             const isMobile = window.innerWidth < 600;
-            const threshold = isMobile ? 20 : 8;
+            const thresholdPx = isMobile ? 30 : 15;
 
-            if (dist < threshold) {
-                snapPiece(el, targetX, targetY);
+            if (distPx < thresholdPx) {
+                snapPiece(el, targetXPx, targetYPx);
             }
         }
 
-        function snapPiece(el, x, y) {
-            el.style.left = `${x}%`;
-            el.style.top = `${y}%`;
+        function snapPiece(el, xPx, yPx) {
+            el.style.left = `${xPx}px`;
+            el.style.top = `${yPx}px`;
             el.classList.add('locked');
             lockedCount++;
             if (lockedCount === totalPieces) onWin();
