@@ -299,45 +299,68 @@
         }
 
         function generateClipPath(shape, pieceW, pieceH, tabSize, totalW, totalH) {
-            // Générer un path SVG pour le clip-path
-            // On travaille en pourcentages pour que ça scale bien
-            const points = [];
-
-            // Convertir en pourcentages
             const toPctX = (x) => (x / totalW * 100).toFixed(2);
             const toPctY = (y) => (y / totalH * 100).toFixed(2);
 
-            // Point de départ (coin haut-gauche de la pièce, pas du canvas)
+            // Fonction pour générer des points sur une courbe de Bézier cubique
+            function bezierPoints(p0, p1, p2, p3, numPoints) {
+                const points = [];
+                for (let i = 0; i <= numPoints; i++) {
+                    const t = i / numPoints;
+                    const t2 = t * t;
+                    const t3 = t2 * t;
+                    const mt = 1 - t;
+                    const mt2 = mt * mt;
+                    const mt3 = mt2 * mt;
+
+                    const x = mt3 * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x;
+                    const y = mt3 * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y;
+                    points.push({ x, y });
+                }
+                return points;
+            }
+
+            const pathPoints = [];
             let x = tabSize;
             let y = tabSize;
 
-            // On va construire un path en utilisant polygon() pour simplicité
-            // Pour les tabs, on utilise des approximations avec plusieurs points
-
-            const pathPoints = [];
-
             // --- TOP EDGE ---
             if (shape[0] === 0) {
-                // Bord plat
                 pathPoints.push(`${toPctX(x)}% ${toPctY(y)}%`);
                 pathPoints.push(`${toPctX(x + pieceW)}% ${toPctY(y)}%`);
             } else {
-                // Tab
-                const dir = shape[0]; // 1 = vers le haut (sortant), -1 = vers le bas (rentrant)
-                const tabH = tabSize * dir;
-                const neck = pieceW * 0.35;
-                const neckStart = x + (pieceW - neck) / 2;
-                const neckEnd = x + (pieceW + neck) / 2;
-                const tabTop = y - tabH;
+                const dir = shape[0];
+                const tabH = tabSize;
+                const neckW = pieceW * 0.28;
+                const bulgeW = pieceW * 0.34;
+                const centerX = x + pieceW / 2;
+                const neckStart = centerX - neckW / 2;
+                const neckEnd = centerX + neckW / 2;
+                const tabTip = dir > 0 ? y - tabH : y + tabH;
 
                 pathPoints.push(`${toPctX(x)}% ${toPctY(y)}%`);
                 pathPoints.push(`${toPctX(neckStart)}% ${toPctY(y)}%`);
-                pathPoints.push(`${toPctX(neckStart - neck*0.2)}% ${toPctY(tabTop + tabH*0.3)}%`);
-                pathPoints.push(`${toPctX(x + pieceW/2 - neck*0.4)}% ${toPctY(tabTop)}%`);
-                pathPoints.push(`${toPctX(x + pieceW/2)}% ${toPctY(tabTop)}%`);
-                pathPoints.push(`${toPctX(x + pieceW/2 + neck*0.4)}% ${toPctY(tabTop)}%`);
-                pathPoints.push(`${toPctX(neckEnd + neck*0.2)}% ${toPctY(tabTop + tabH*0.3)}%`);
-                pathPoints.push(`${toPctX(neckEnd)}% ${toPctY(y)}%`);
+
+                // Courbe gauche du tab (neck vers bulge)
+                const curve1 = bezierPoints(
+                    { x: neckStart, y: y },
+                    { x: neckStart, y: tabTip + (y - tabTip) * 0.4 },
+                    { x: centerX - bulgeW / 2, y: tabTip },
+                    { x: centerX, y: tabTip },
+                    8
+                );
+                curve1.forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                // Courbe droite du tab (bulge vers neck)
+                const curve2 = bezierPoints(
+                    { x: centerX, y: tabTip },
+                    { x: centerX + bulgeW / 2, y: tabTip },
+                    { x: neckEnd, y: tabTip + (y - tabTip) * 0.4 },
+                    { x: neckEnd, y: y },
+                    8
+                );
+                curve2.slice(1).forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
                 pathPoints.push(`${toPctX(x + pieceW)}% ${toPctY(y)}%`);
             }
             x += pieceW;
@@ -347,19 +370,34 @@
                 pathPoints.push(`${toPctX(x)}% ${toPctY(y + pieceH)}%`);
             } else {
                 const dir = shape[1];
-                const tabW = tabSize * dir;
-                const neck = pieceH * 0.35;
-                const neckStart = y + (pieceH - neck) / 2;
-                const neckEnd = y + (pieceH + neck) / 2;
-                const tabRight = x + tabW;
+                const tabW = tabSize;
+                const neckH = pieceH * 0.28;
+                const bulgeH = pieceH * 0.34;
+                const centerY = y + pieceH / 2;
+                const neckStart = centerY - neckH / 2;
+                const neckEnd = centerY + neckH / 2;
+                const tabTip = dir > 0 ? x + tabW : x - tabW;
 
                 pathPoints.push(`${toPctX(x)}% ${toPctY(neckStart)}%`);
-                pathPoints.push(`${toPctX(tabRight - tabW*0.3)}% ${toPctY(neckStart - neck*0.2)}%`);
-                pathPoints.push(`${toPctX(tabRight)}% ${toPctY(y + pieceH/2 - neck*0.4)}%`);
-                pathPoints.push(`${toPctX(tabRight)}% ${toPctY(y + pieceH/2)}%`);
-                pathPoints.push(`${toPctX(tabRight)}% ${toPctY(y + pieceH/2 + neck*0.4)}%`);
-                pathPoints.push(`${toPctX(tabRight - tabW*0.3)}% ${toPctY(neckEnd + neck*0.2)}%`);
-                pathPoints.push(`${toPctX(x)}% ${toPctY(neckEnd)}%`);
+
+                const curve1 = bezierPoints(
+                    { x: x, y: neckStart },
+                    { x: tabTip - (tabTip - x) * 0.4, y: neckStart },
+                    { x: tabTip, y: centerY - bulgeH / 2 },
+                    { x: tabTip, y: centerY },
+                    8
+                );
+                curve1.forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                const curve2 = bezierPoints(
+                    { x: tabTip, y: centerY },
+                    { x: tabTip, y: centerY + bulgeH / 2 },
+                    { x: tabTip - (tabTip - x) * 0.4, y: neckEnd },
+                    { x: x, y: neckEnd },
+                    8
+                );
+                curve2.slice(1).forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
                 pathPoints.push(`${toPctX(x)}% ${toPctY(y + pieceH)}%`);
             }
             y += pieceH;
@@ -369,41 +407,70 @@
                 pathPoints.push(`${toPctX(x - pieceW)}% ${toPctY(y)}%`);
             } else {
                 const dir = shape[2];
-                const tabH = tabSize * dir;
-                const neck = pieceW * 0.35;
-                const neckEnd = x - (pieceW - neck) / 2;
-                const neckStart = x - (pieceW + neck) / 2;
-                const tabBottom = y + tabH;
+                const tabH = tabSize;
+                const neckW = pieceW * 0.28;
+                const bulgeW = pieceW * 0.34;
+                const centerX = x - pieceW / 2;
+                const neckEnd = centerX + neckW / 2;
+                const neckStart = centerX - neckW / 2;
+                const tabTip = dir > 0 ? y + tabH : y - tabH;
 
                 pathPoints.push(`${toPctX(neckEnd)}% ${toPctY(y)}%`);
-                pathPoints.push(`${toPctX(neckEnd + neck*0.2)}% ${toPctY(tabBottom - tabH*0.3)}%`);
-                pathPoints.push(`${toPctX(x - pieceW/2 + neck*0.4)}% ${toPctY(tabBottom)}%`);
-                pathPoints.push(`${toPctX(x - pieceW/2)}% ${toPctY(tabBottom)}%`);
-                pathPoints.push(`${toPctX(x - pieceW/2 - neck*0.4)}% ${toPctY(tabBottom)}%`);
-                pathPoints.push(`${toPctX(neckStart - neck*0.2)}% ${toPctY(tabBottom - tabH*0.3)}%`);
-                pathPoints.push(`${toPctX(neckStart)}% ${toPctY(y)}%`);
+
+                const curve1 = bezierPoints(
+                    { x: neckEnd, y: y },
+                    { x: neckEnd, y: tabTip - (tabTip - y) * 0.4 },
+                    { x: centerX + bulgeW / 2, y: tabTip },
+                    { x: centerX, y: tabTip },
+                    8
+                );
+                curve1.forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                const curve2 = bezierPoints(
+                    { x: centerX, y: tabTip },
+                    { x: centerX - bulgeW / 2, y: tabTip },
+                    { x: neckStart, y: tabTip - (tabTip - y) * 0.4 },
+                    { x: neckStart, y: y },
+                    8
+                );
+                curve2.slice(1).forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
                 pathPoints.push(`${toPctX(x - pieceW)}% ${toPctY(y)}%`);
             }
             x -= pieceW;
 
             // --- LEFT EDGE ---
             if (shape[3] === 0) {
-                // Retour au point de départ (implicite avec polygon)
+                // Fermeture implicite
             } else {
                 const dir = shape[3];
-                const tabW = tabSize * dir;
-                const neck = pieceH * 0.35;
-                const neckEnd = y - (pieceH - neck) / 2;
-                const neckStart = y - (pieceH + neck) / 2;
-                const tabLeft = x - tabW;
+                const tabW = tabSize;
+                const neckH = pieceH * 0.28;
+                const bulgeH = pieceH * 0.34;
+                const centerY = y - pieceH / 2;
+                const neckEnd = centerY + neckH / 2;
+                const neckStart = centerY - neckH / 2;
+                const tabTip = dir > 0 ? x - tabW : x + tabW;
 
                 pathPoints.push(`${toPctX(x)}% ${toPctY(neckEnd)}%`);
-                pathPoints.push(`${toPctX(tabLeft + tabW*0.3)}% ${toPctY(neckEnd + neck*0.2)}%`);
-                pathPoints.push(`${toPctX(tabLeft)}% ${toPctY(y - pieceH/2 + neck*0.4)}%`);
-                pathPoints.push(`${toPctX(tabLeft)}% ${toPctY(y - pieceH/2)}%`);
-                pathPoints.push(`${toPctX(tabLeft)}% ${toPctY(y - pieceH/2 - neck*0.4)}%`);
-                pathPoints.push(`${toPctX(tabLeft + tabW*0.3)}% ${toPctY(neckStart - neck*0.2)}%`);
-                pathPoints.push(`${toPctX(x)}% ${toPctY(neckStart)}%`);
+
+                const curve1 = bezierPoints(
+                    { x: x, y: neckEnd },
+                    { x: tabTip + (x - tabTip) * 0.4, y: neckEnd },
+                    { x: tabTip, y: centerY + bulgeH / 2 },
+                    { x: tabTip, y: centerY },
+                    8
+                );
+                curve1.forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                const curve2 = bezierPoints(
+                    { x: tabTip, y: centerY },
+                    { x: tabTip, y: centerY - bulgeH / 2 },
+                    { x: tabTip + (x - tabTip) * 0.4, y: neckStart },
+                    { x: x, y: neckStart },
+                    8
+                );
+                curve2.slice(1).forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
             }
 
             return `polygon(${pathPoints.join(', ')})`;
