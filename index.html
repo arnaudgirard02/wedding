@@ -7,47 +7,29 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
-        body { 
-            margin: 0; padding: 0; background-color: #ffffff; color: #333; 
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            display: flex; flex-direction: column; align-items: center; 
-            min-height: 100vh; overflow: hidden; position: relative; 
-        }
+        body { margin: 0; padding: 0; background-color: #ffffff; color: #333; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; overflow: hidden; }
 
         #background-container { position: fixed; bottom: 0; left: 0; width: 100%; z-index: 0; pointer-events: none; }
         #bg-img { width: 100%; height: auto; display: block; }
 
-        #game-ui { text-align: center; margin-top: 5vh; z-index: 50; width: 90%; max-width: 600px; }
-        h1 { font-size: 1.2rem; font-weight: 400; line-height: 1.4; margin: 0; text-shadow: 0 1px 2px rgba(255,255,255,0.8); }
+        #game-ui { text-align: center; margin-top: 20px; z-index: 50; width: 90%; }
+        h1 { font-size: 1.1rem; font-weight: 400; }
         .instruction-highlight { font-weight: 600; color: #dfa668; }
 
-        #puzzle-container { 
-            position: relative; z-index: 50; width: 90vw; max-width: 500px; 
-            margin-top: 3vh; touch-action: none; background: rgba(255,255,255,0.2);
-            border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        #puzzle-guide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: 100% 100%; opacity: 0.08; filter: blur(3px); border-radius: 8px; }
-        #final-reveal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: 100% 100%; opacity: 0; z-index: 150; transition: opacity 0.8s; border-radius: 8px; }
+        #puzzle-container { position: relative; z-index: 50; width: 90vw; max-width: 450px; margin-top: 15px; touch-action: none; }
+        #puzzle-guide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; opacity: 0.15; border: 1px dashed #ccc; border-radius: 8px; }
+        #final-reveal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; opacity: 0; z-index: 150; transition: opacity 0.8s; border-radius: 8px; }
 
-        .piece { position: absolute; z-index: 60; cursor: grab; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2)); }
-        .piece.dragging { z-index: 1000; transform: scale(1.05); cursor: grabbing; filter: drop-shadow(0 15px 25px rgba(0,0,0,0.3)); }
-        .piece.locked { z-index: 40; filter: none; pointer-events: none; }
+        .piece { position: absolute; z-index: 60; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); cursor: grab; }
+        .piece.dragging { z-index: 1000; transform: scale(1.05); }
+        .piece.locked { z-index: 40; filter: none; pointer-events: none; transition: all 0.2s ease-out; }
 
-        #success-message { 
-            position: fixed; bottom: -300px; left: 50%; transform: translateX(-50%); 
-            background: white; padding: 30px; border-radius: 30px; 
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center; 
-            opacity: 0; transition: all 0.6s cubic-bezier(0.17, 0.84, 0.44, 1); 
-            width: 85%; max-width: 380px; z-index: 2000; 
-        }
+        #success-message { position: fixed; bottom: -300px; left: 50%; transform: translateX(-50%); background: white; padding: 25px; border-radius: 30px; box-shadow: 0 15px 50px rgba(0,0,0,0.3); text-align: center; opacity: 0; transition: all 0.6s cubic-bezier(0.17, 0.84, 0.44, 1); width: 85%; max-width: 350px; z-index: 2000; }
         #success-message.visible { bottom: 40px; opacity: 1; }
-        #success-message h2 { margin: 0 0 10px; color: #2c3e50; }
-        .btn-form { 
-            display: inline-block; background-color: #dfa668; color: white; 
-            text-decoration: none; padding: 16px 32px; border-radius: 50px; 
-            font-weight: 600; margin-top: 20px; transition: transform 0.2s;
-        }
-        .btn-form:active { transform: scale(0.95); }
+        .btn-form { display: inline-block; background-color: #dfa668; color: white; text-decoration: none; padding: 14px 24px; border-radius: 50px; font-weight: 600; margin-top: 15px; }
+        
+        .puzzle-complete .piece { display: none; }
+        .puzzle-complete #final-reveal { opacity: 1; }
     </style>
 </head>
 <body>
@@ -55,7 +37,7 @@
     <div id="background-container"><img id="bg-img" src="bg.png"></div>
 
     <div id="game-ui">
-        <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
+        <h1>Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
     </div>
 
     <div id="puzzle-container">
@@ -66,17 +48,17 @@
     <div id="success-message">
         <h2>Félicitations !</h2>
         <p>Vous connaissez la date et le lieu du mariage 🥰</p>
-        <a href="https://votre-formulaire.com" class="btn-form">Confirmer ma présence</a>
+        <a href="#" class="btn-form">Confirmer ma présence</a>
     </div>
 
     <script>
         const CONFIG = {
             piecesSrc: 'guide.jpg', 
             finalSrc: 'puzzle.png', 
-            rows: 3, 
-            cols: 3, // 3x3 est idéal pour vos visages (limite les coupes sur les yeux)
-            tabSizeFactor: 0.16,
-            snapTolerance: 12
+            rows: 2, // Réduit pour éviter de couper les visages horizontalement
+            cols: 3, 
+            tabSizeFactor: 0.15,
+            snapTolerance: 25 // Plus généreux pour l'UX mobile
         };
 
         const container = document.getElementById('puzzle-container');
@@ -91,30 +73,31 @@
         img.onload = () => {
             const ratio = img.naturalWidth / img.naturalHeight;
             const containerWidth = container.offsetWidth;
-            container.style.height = (containerWidth / ratio) + 'px';
+            const containerHeight = containerWidth / ratio;
+            container.style.height = containerHeight + 'px';
             
             guide.style.backgroundImage = `url(${img.src})`;
             finalReveal.style.backgroundImage = `url(${CONFIG.finalSrc})`;
-            
-            initPuzzle();
+            setupPuzzle();
         };
         img.src = CONFIG.piecesSrc;
 
-        function initPuzzle() {
+        function setupPuzzle() {
             const w = container.offsetWidth;
             const h = container.offsetHeight;
             const pw = w / CONFIG.cols;
             const ph = h / CONFIG.rows;
             const tab = Math.min(pw, ph) * CONFIG.tabSizeFactor;
 
+            // Génération de formes déterministes pour éviter les "accidents" visuels
             const shapes = [];
             for (let r = 0; r < CONFIG.rows; r++) {
                 shapes[r] = [];
                 for (let c = 0; c < CONFIG.cols; c++) {
                     shapes[r][c] = {
                         top: r > 0 ? -shapes[r-1][c].bottom : 0,
-                        right: c < CONFIG.cols - 1 ? (Math.random() > 0.5 ? 1 : -1) : 0,
-                        bottom: r < CONFIG.rows - 1 ? (Math.random() > 0.5 ? 1 : -1) : 0,
+                        right: c < CONFIG.cols - 1 ? 1 : 0, // On force le "mâle" à droite
+                        bottom: r < CONFIG.rows - 1 ? 1 : 0, // On force le "mâle" en bas
                         left: c > 0 ? -shapes[r][c-1].right : 0
                     };
                 }
@@ -129,18 +112,15 @@
 
         function createPiece(r, c, pw, ph, tab, shape, totalW, totalH) {
             const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d', { alpha: true });
-            
-            // On ajoute 2px de sécurité pour éviter les bordures hachées
-            const cw = Math.ceil(pw + tab * 2) + 2;
-            const ch = Math.ceil(ph + tab * 2) + 2;
+            const ctx = canvas.getContext('2d');
+            const cw = pw + tab * 2;
+            const ch = ph + tab * 2;
             
             canvas.width = cw;
             canvas.height = ch;
             canvas.className = 'piece';
 
-            // Dessin du tracé
-            ctx.translate(1, 1);
+            // Dessin de la pièce
             ctx.beginPath();
             ctx.moveTo(tab, tab);
             drawSide(ctx, tab, tab, tab + pw, tab, shape.top, tab, true);
@@ -149,41 +129,39 @@
             drawSide(ctx, tab, tab + ph, tab, tab, shape.left, tab, false);
             ctx.closePath();
 
-            // Clipping et rendu (calculé sur les dimensions réelles de l'image)
             ctx.save();
             ctx.clip();
-            const ratioX = img.naturalWidth / totalW;
-            const ratioY = img.naturalHeight / totalH;
             
-            const sx = (c * pw - tab) * ratioX;
-            const sy = (r * ph - tab) * ratioY;
-            const sw = (pw + tab * 2) * ratioX;
-            const sh = (ph + tab * 2) * ratioY;
+            // Calcul du ratio d'affichage vs source
+            const scaleX = img.naturalWidth / totalW;
+            const scaleY = img.naturalHeight / totalH;
+            
+            const sx = (c * pw - tab) * scaleX;
+            const sy = (r * ph - tab) * scaleY;
+            const sw = cw * scaleX;
+            const sh = ch * scaleY;
 
-            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, pw + tab * 2, ph + tab * 2);
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
             ctx.restore();
 
-            // Bordure subtile pour détacher les pièces
+            // Effet de bordure plus doux
             ctx.strokeStyle = "rgba(255,255,255,0.4)";
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Positionnement initial aléatoire sur les côtés
-            canvas.style.width = (cw * (container.offsetWidth / totalW)) + 'px';
+            // Positionnement aléatoire en bas de l'écran (zone de pioche)
             const rect = container.getBoundingClientRect();
+            const startX = Math.random() * (window.innerWidth - cw);
+            const startY = (window.innerHeight * 0.7) + (Math.random() * 50);
             
-            // Dispatch des pièces hors du cadre du puzzle
-            const side = Math.random() > 0.5 ? -120 : window.innerWidth - 80;
-            const startX = Math.random() > 0.5 ? (Math.random() * 50 - 100) : (window.innerWidth - 150);
-            const startY = Math.random() * (window.innerHeight - 200) + 100;
-            
+            canvas.style.width = cw + 'px';
             canvas.style.left = (startX - rect.left) + 'px';
             canvas.style.top = (startY - rect.top) + 'px';
 
-            canvas.dataset.targetX = (c * pw - tab);
-            canvas.dataset.targetY = (r * ph - tab);
+            canvas.dataset.trX = (c * pw - tab);
+            canvas.dataset.trY = (r * ph - tab);
 
-            addDragEvents(canvas);
+            addEvents(canvas);
             container.appendChild(canvas);
             pieces.push(canvas);
         }
@@ -192,57 +170,52 @@
             if (type === 0) { ctx.lineTo(x2, y2); return; }
             const cx = (x1 + x2) / 2;
             const cy = (y1 + y2) / 2;
-            const size = type * tab;
+            const nx = isHoriz ? 0 : -type * tab;
+            const ny = isHoriz ? type * tab : 0;
             
-            if (isHoriz) {
-                ctx.bezierCurveTo(x1, y1 + size, cx - tab, cy + size, cx, cy + size);
-                ctx.bezierCurveTo(cx + tab, cy + size, x2, y2 + size, x2, y2);
-            } else {
-                ctx.bezierCurveTo(x1 + size, y1, cx + size, cy - tab, cx + size, cy);
-                ctx.bezierCurveTo(cx + size, cy + tab, x2 + size, y2, x2, y2);
-            }
+            ctx.quadraticCurveTo(cx + nx, cy + ny, x2, y2);
         }
 
-        function addDragEvents(el) {
-            let offsetX, offsetY, isDragging = false;
-
+        function addEvents(el) {
+            let startX, startY, initialLeft, initialTop;
+            
             const start = (e) => {
-                if (el.classList.contains('locked')) return;
                 const t = e.touches ? e.touches[0] : e;
-                const rect = el.getBoundingClientRect();
-                offsetX = t.clientX - rect.left;
-                offsetY = t.clientY - rect.top;
-                isDragging = true;
                 el.classList.add('dragging');
-                container.appendChild(el);
+                startX = t.clientX;
+                startY = t.clientY;
+                initialLeft = parseFloat(el.style.left);
+                initialTop = parseFloat(el.style.top);
+                container.appendChild(el); 
             };
 
             const move = (e) => {
-                if (!isDragging) return;
+                if (!el.classList.contains('dragging')) return;
                 e.preventDefault();
                 const t = e.touches ? e.touches[0] : e;
-                const contRect = container.getBoundingClientRect();
-                el.style.left = (t.clientX - contRect.left - offsetX) + 'px';
-                el.style.top = (t.clientY - contRect.top - offsetY) + 'px';
+                el.style.left = (initialLeft + (t.clientX - startX)) + 'px';
+                el.style.top = (initialTop + (t.clientY - startY)) + 'px';
             };
 
             const end = () => {
-                if (!isDragging) return;
-                isDragging = false;
+                if (!el.classList.contains('dragging')) return;
                 el.classList.remove('dragging');
                 
                 const curX = parseFloat(el.style.left);
                 const curY = parseFloat(el.style.top);
-                const tarX = parseFloat(el.dataset.targetX);
-                const tarY = parseFloat(el.dataset.targetY);
+                const tarX = parseFloat(el.dataset.trX);
+                const tarY = parseFloat(el.dataset.trY);
 
                 if (Math.hypot(curX - tarX, curY - tarY) < CONFIG.snapTolerance) {
                     el.style.left = tarX + 'px';
                     el.style.top = tarY + 'px';
                     el.classList.add('locked');
                     lockedCount++;
-                    if (navigator.vibrate) navigator.vibrate(20);
-                    if (lockedCount === pieces.length) showWin();
+                    if (lockedCount === pieces.length) {
+                        container.classList.add('puzzle-complete');
+                        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                        setTimeout(() => successMsg.classList.add('visible'), 500);
+                    }
                 }
             };
 
@@ -252,14 +225,6 @@
             window.addEventListener('touchmove', move, {passive: false});
             window.addEventListener('mouseup', end);
             window.addEventListener('touchend', end);
-        }
-
-        function showWin() {
-            container.classList.add('puzzle-complete');
-            confetti({ particleCount: 150, spread: 70, origin: { y: 0.7 }, zIndex: 3000 });
-            setTimeout(() => {
-                successMsg.classList.add('visible');
-            }, 600);
         }
     </script>
 </body>
