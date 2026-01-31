@@ -11,21 +11,25 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* Empêche le scroll sur mobile pendant le jeu */
+            touch-action: none;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
         }
 
         body {
-            margin: 0;
-            padding: 0;
             background-color: #ffffff; 
             color: #333;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start; /* Changé pour mieux gérer le haut sur mobile */
-            height: 100vh;
-            overflow: hidden;
+            justify-content: flex-start;
             position: relative;
         }
 
@@ -50,20 +54,34 @@
             opacity: 1; 
         }
 
+        /* --- GAME WRAPPER - Contrôle tout le layout --- */
+        #game-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            z-index: 50;
+            overflow: hidden;
+        }
+
         /* --- UI ELEMENTS --- */
         #game-ui {
             text-align: center;
-            margin-top: 40px; /* Espace fixe depuis le haut */
-            margin-bottom: 20px;
+            flex-shrink: 0;
             z-index: 50; 
             pointer-events: none;
-            width: 90%;
+            width: 100%;
             max-width: 600px;
-            position: relative;
+            padding: 10px 0 15px 0;
         }
 
         h1 {
-            font-size: 1.2rem;
+            font-size: clamp(0.9rem, 3vw, 1.2rem);
             font-weight: 400;
             margin: 0;
             opacity: 0.8;
@@ -77,21 +95,29 @@
             color: #dfa668;
         }
 
+        /* --- PUZZLE AREA - Zone de jeu flexible --- */
+        #puzzle-area {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0; /* Important pour flex shrink */
+        }
+
         /* --- PUZZLE CONTAINER --- */
         #puzzle-container {
             position: relative;
-            z-index: 50; 
-            width: 90vw; /* Prend presque toute la largeur sur mobile */
-            max-width: 600px;
-            aspect-ratio: 4/3; 
+            z-index: 50;
             background-color: #ffffff; 
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: background-color 0.5s;
-            margin-bottom: 20px; /* Espace en bas */
+            /* Tailles calculées dynamiquement par JS */
         }
 
-        /* Le guide (image de fond atténuée - SANS DATE) */
+        /* Le guide (image de fond atténuée) */
         #puzzle-guide {
             position: absolute;
             top: 0;
@@ -99,14 +125,14 @@
             width: 100%;
             height: 100%;
             background-size: 100% 100%;
-            opacity: 0.25; /* Un peu plus clair pour mieux voir les pièces par dessus */
+            opacity: 0.25;
             border: 2px dashed #ccc;
             border-radius: 8px;
             z-index: 0;
-            filter: blur(5px); /* Effet de flou pour augmenter la difficulté */
+            filter: blur(5px);
         }
 
-        /* L'image de RÉVÉLATION (AVEC DATE) */
+        /* L'image de RÉVÉLATION */
         #final-reveal {
             position: absolute;
             top: 0;
@@ -129,12 +155,13 @@
             filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
             transition: transform 0.1s;
             touch-action: none;
+            /* Les pièces utilisent des % pour left/top relatifs au puzzle-area */
         }
 
         .piece.dragging {
-            z-index: 999; /* Très haut z-index pour ne jamais passer derrière */
+            z-index: 999;
             cursor: grabbing;
-            transform: scale(1.1); /* Plus gros sur mobile pour voir sous le doigt */
+            transform: scale(1.1);
             filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
         }
 
@@ -142,13 +169,13 @@
             z-index: 40;
             cursor: default;
             filter: none;
-            pointer-events: none; /* Une fois lockée, on ne la touche plus */
+            pointer-events: none;
             transition: all 0.3s ease;
         }
 
         /* --- SUCCESS STATE --- */
         #success-message {
-            position: fixed; /* Fixe pour être sûr d'être visible */
+            position: fixed;
             bottom: -100px;
             left: 50%;
             transform: translateX(-50%);
@@ -172,13 +199,13 @@
         #success-message h2 {
             margin: 0 0 5px 0;
             color: #2c3e50;
-            font-size: 1.4rem;
+            font-size: clamp(1.1rem, 4vw, 1.4rem);
         }
 
         #success-message p {
             margin: 0 0 15px 0;
             color: #7f8c8d;
-            font-size: 0.95rem;
+            font-size: clamp(0.85rem, 3vw, 0.95rem);
         }
 
         .btn-form {
@@ -220,7 +247,6 @@
             background-color: transparent;
             box-shadow: 0 15px 40px rgba(0,0,0,0.2);
         }
-
     </style>
 </head>
 <body>
@@ -229,18 +255,23 @@
         <img id="bg-img" src="" alt="">
     </div>
 
-    <div id="game-ui">
-        <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
-    </div>
+    <div id="game-wrapper">
+        <div id="game-ui">
+            <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
+        </div>
 
-    <div id="puzzle-container">
-        <div id="puzzle-guide"></div>
-        <div id="final-reveal"></div>
+        <div id="puzzle-area">
+            <div id="puzzle-container">
+                <div id="puzzle-guide"></div>
+                <div id="final-reveal"></div>
+            </div>
+            <!-- Les pièces seront ajoutées ici dans puzzle-area -->
+        </div>
     </div>
 
     <div id="success-message">
         <h2>Félicitations !</h2>
-        <p> Vous connaissez la date et le lieu du mariage 🥰</p>
+        <p>Vous connaissez la date et le lieu du mariage 🥰</p>
         <a href="https://formulaire.com" class="btn-form">Confirmer ma présence</a>
     </div>
 
@@ -255,10 +286,12 @@
         };
 
         const container = document.getElementById('puzzle-container');
+        const puzzleArea = document.getElementById('puzzle-area');
         const guide = document.getElementById('puzzle-guide');
         const finalReveal = document.getElementById('final-reveal');
         const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
+        const gameWrapper = document.getElementById('game-wrapper');
 
         const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
         const bgImgElement = document.getElementById('bg-img');
@@ -276,6 +309,40 @@
         let pieces = [];
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
+        let imageRatio = 4/3; // Ratio par défaut, sera mis à jour
+
+        // --- CALCUL DE LA TAILLE DU PUZZLE ---
+        function calculatePuzzleSize() {
+            const areaRect = puzzleArea.getBoundingClientRect();
+            const availableW = areaRect.width * 0.85; // 85% de la largeur disponible
+            const availableH = areaRect.height * 0.7; // 70% de la hauteur disponible
+            
+            let puzzleW, puzzleH;
+            
+            // Calculer en fonction du ratio de l'image
+            if (availableW / availableH > imageRatio) {
+                // Limité par la hauteur
+                puzzleH = availableH;
+                puzzleW = puzzleH * imageRatio;
+            } else {
+                // Limité par la largeur
+                puzzleW = availableW;
+                puzzleH = puzzleW / imageRatio;
+            }
+            
+            // Limites min/max
+            puzzleW = Math.max(200, Math.min(puzzleW, 700));
+            puzzleH = puzzleW / imageRatio;
+            
+            return { width: puzzleW, height: puzzleH };
+        }
+
+        function updatePuzzleSize() {
+            const size = calculatePuzzleSize();
+            container.style.width = `${size.width}px`;
+            container.style.height = `${size.height}px`;
+            return size;
+        }
 
         function generatePerfectShapes(rows, cols) {
             const shapes = [];
@@ -296,8 +363,8 @@
         imgPieces.src = CONFIG.piecesSrc;
         
         imgPieces.onload = () => {
-            const ratio = imgPieces.width / imgPieces.height;
-            container.style.aspectRatio = `${ratio}`;
+            imageRatio = imgPieces.width / imgPieces.height;
+            updatePuzzleSize();
             guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
             finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
             initPuzzle();
@@ -355,19 +422,28 @@
             ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
 
-            // Stockage des dimensions réelles pour le calcul de position
+            // Stockage des données pour le calcul de position
             canvas.dataset.pieceWidth = totalW;
             canvas.dataset.pieceHeight = totalH;
             canvas.dataset.row = row;
             canvas.dataset.col = col;
             canvas.dataset.tabSize = tabSize;
+            // Stocker les dimensions originales de l'image pour les calculs de ratio
+            canvas.dataset.origImgW = imgPieces.width;
+            canvas.dataset.origImgH = imgPieces.height;
 
             canvas.style.position = 'absolute';
-            canvas.style.width = `${(totalW / (imgPieces.width + tabSize * 2 * CONFIG.cols)) * 100}%`;
+            
+            // Calculer la largeur en % du puzzle-area
+            const containerRect = container.getBoundingClientRect();
+            const areaRect = puzzleArea.getBoundingClientRect();
+            const pieceWidthPx = (totalW / imgPieces.width) * containerRect.width;
+            const pieceWidthPercent = (pieceWidthPx / areaRect.width) * 100;
+            canvas.style.width = `${pieceWidthPercent}%`;
             canvas.style.height = 'auto';
 
             addDragListeners(canvas);
-            container.appendChild(canvas);
+            puzzleArea.appendChild(canvas);
             pieces.push(canvas);
         }
 
@@ -387,62 +463,102 @@
             ctx.lineTo(x + dx, y + dy);
         }
 
-        // --- NOUVELLE FONCTION DE MÉLANGE INTELLIGENTE ---
+        // --- MÉLANGE DES PIÈCES RESPONSIVE ---
         function scramblePieces() {
+            const areaRect = puzzleArea.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
-            const winW = window.innerWidth;
-            const winH = window.innerHeight;
-            // On récupère la hauteur du titre pour ne pas mettre de pièces dessus
-            const headerHeight = document.getElementById('game-ui').offsetHeight + 40; 
             
-            const isMobile = winW < 600;
-
+            // Zones interdites (le puzzle lui-même) - en coordonnées relatives à puzzleArea
+            const puzzleLeft = containerRect.left - areaRect.left;
+            const puzzleRight = containerRect.right - areaRect.left;
+            const puzzleTop = containerRect.top - areaRect.top;
+            const puzzleBottom = containerRect.bottom - areaRect.top;
+            
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
                 
-                const pW = piece.offsetWidth || 100;
-                const pH = piece.offsetHeight || 100;
+                const pW = piece.offsetWidth || 50;
+                const pH = piece.offsetHeight || 50;
                 
-                let minX, maxX, minY, maxY;
-
-                if (isMobile) {
-                    // SUR MOBILE : On utilise tout l'écran SAUF le titre en haut
-                    minX = 10;
-                    maxX = winW - pW - 10;
-                    minY = headerHeight; // Jamais plus haut que le titre
-                    maxY = winH - pH - 10;
-
-                    // Petite optimisation : essayer de mettre plus de pièces en BAS si possible
-                    if ((winH - containerRect.bottom) > 150) {
-                        // S'il y a de la place en bas, on favorise cette zone (50% de chance)
-                        if (Math.random() > 0.5) {
-                            minY = containerRect.bottom;
-                        }
-                    }
-                } else {
-                    // SUR DESKTOP : Logique classique (gauche/droite/bas)
-                    const side = Math.floor(Math.random() * 3);
-                    if (side === 0) { // Gauche
-                        minX = 10; maxX = containerRect.left - pW - 10;
-                        minY = headerHeight; maxY = winH - pH - 10;
-                    } else if (side === 1) { // Droite
-                        minX = containerRect.right + 10; maxX = winW - pW - 10;
-                        minY = headerHeight; maxY = winH - pH - 10;
-                    } else { // Bas
-                        minX = 10; maxX = winW - pW - 10;
-                        minY = containerRect.bottom + 10; maxY = winH - pH - 10;
-                    }
-                    // Fallback desktop
-                    if (maxX < minX) { minX = 10; maxX = winW - pW - 10; }
+                // Marge de sécurité
+                const margin = 10;
+                
+                // Calculer les zones disponibles autour du puzzle
+                const zones = [];
+                
+                // Zone gauche
+                if (puzzleLeft > pW + margin * 2) {
+                    zones.push({
+                        minX: margin,
+                        maxX: puzzleLeft - pW - margin,
+                        minY: margin,
+                        maxY: areaRect.height - pH - margin
+                    });
                 }
                 
-                // Calcul de position aléatoire
-                const pageX = minX + Math.random() * (maxX - minX);
-                const pageY = minY + Math.random() * (maxY - minY);
-
-                // Conversion importante vers le système de coordonnées du conteneur
-                piece.style.left = `${pageX - containerRect.left}px`;
-                piece.style.top = `${pageY - containerRect.top}px`;
+                // Zone droite
+                if (areaRect.width - puzzleRight > pW + margin * 2) {
+                    zones.push({
+                        minX: puzzleRight + margin,
+                        maxX: areaRect.width - pW - margin,
+                        minY: margin,
+                        maxY: areaRect.height - pH - margin
+                    });
+                }
+                
+                // Zone haut
+                if (puzzleTop > pH + margin * 2) {
+                    zones.push({
+                        minX: margin,
+                        maxX: areaRect.width - pW - margin,
+                        minY: margin,
+                        maxY: puzzleTop - pH - margin
+                    });
+                }
+                
+                // Zone bas
+                if (areaRect.height - puzzleBottom > pH + margin * 2) {
+                    zones.push({
+                        minX: margin,
+                        maxX: areaRect.width - pW - margin,
+                        minY: puzzleBottom + margin,
+                        maxY: areaRect.height - pH - margin
+                    });
+                }
+                
+                // Si aucune zone n'est assez grande, utiliser toute la zone
+                if (zones.length === 0) {
+                    zones.push({
+                        minX: margin,
+                        maxX: areaRect.width - pW - margin,
+                        minY: margin,
+                        maxY: areaRect.height - pH - margin
+                    });
+                }
+                
+                // Choisir une zone aléatoire
+                const zone = zones[Math.floor(Math.random() * zones.length)];
+                
+                // S'assurer que max > min
+                const safeMinX = Math.min(zone.minX, zone.maxX);
+                const safeMaxX = Math.max(zone.minX, zone.maxX);
+                const safeMinY = Math.min(zone.minY, zone.maxY);
+                const safeMaxY = Math.max(zone.minY, zone.maxY);
+                
+                // Position aléatoire dans la zone (en pixels relatifs à puzzleArea)
+                const posX = safeMinX + Math.random() * (safeMaxX - safeMinX);
+                const posY = safeMinY + Math.random() * (safeMaxY - safeMinY);
+                
+                // Stocker en pourcentages pour être responsive
+                const leftPercent = (posX / areaRect.width) * 100;
+                const topPercent = (posY / areaRect.height) * 100;
+                
+                piece.style.left = `${leftPercent}%`;
+                piece.style.top = `${topPercent}%`;
+                
+                // Stocker aussi la position en % pour le resize
+                piece.dataset.leftPercent = leftPercent;
+                piece.dataset.topPercent = topPercent;
             });
         }
 
@@ -455,75 +571,173 @@
                 el.classList.add('dragging');
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                startX = clientX; startY = clientY;
-                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
+                startX = clientX; 
+                startY = clientY;
+                
+                // Récupérer la position actuelle en pixels
+                const areaRect = puzzleArea.getBoundingClientRect();
+                initialLeft = el.offsetLeft;
+                initialTop = el.offsetTop;
             };
             
             const onMove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault(); // Empêche le scroll page sur mobile
+                e.preventDefault();
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                el.style.left = `${initialLeft + (clientX - startX)}px`;
-                el.style.top = `${initialTop + (clientY - startY)}px`;
+                
+                const newLeft = initialLeft + (clientX - startX);
+                const newTop = initialTop + (clientY - startY);
+                
+                el.style.left = `${newLeft}px`;
+                el.style.top = `${newTop}px`;
             };
             
             const onEnd = () => {
                 if (!isDragging) return;
                 isDragging = false;
                 el.classList.remove('dragging');
+                
+                // Convertir en pourcentages pour le stockage
+                const areaRect = puzzleArea.getBoundingClientRect();
+                const leftPx = el.offsetLeft;
+                const topPx = el.offsetTop;
+                el.dataset.leftPercent = (leftPx / areaRect.width) * 100;
+                el.dataset.topPercent = (topPx / areaRect.height) * 100;
+                
                 checkSnap(el);
             };
 
-            el.addEventListener('mousedown', onStart); el.addEventListener('touchstart', onStart, {passive:false});
-            window.addEventListener('mousemove', onMove); window.addEventListener('touchmove', onMove, {passive:false});
-            window.addEventListener('mouseup', onEnd); window.addEventListener('touchend', onEnd);
+            el.addEventListener('mousedown', onStart); 
+            el.addEventListener('touchstart', onStart, {passive: false});
+            window.addEventListener('mousemove', onMove); 
+            window.addEventListener('touchmove', onMove, {passive: false});
+            window.addEventListener('mouseup', onEnd); 
+            window.addEventListener('touchend', onEnd);
         }
 
         function checkSnap(el) {
             const containerRect = container.getBoundingClientRect();
+            const areaRect = puzzleArea.getBoundingClientRect();
             const row = parseInt(el.dataset.row);
             const col = parseInt(el.dataset.col);
             const tabSize = parseFloat(el.dataset.tabSize);
+            const origImgW = parseFloat(el.dataset.origImgW);
+            const origImgH = parseFloat(el.dataset.origImgH);
             
-            // Calculer la taille d'une pièce de base (sans tabs) dans le conteneur actuel
-            const basePieceW = imgPieces.width / CONFIG.cols;
-            const basePieceH = imgPieces.height / CONFIG.rows;
+            // Taille d'une pièce de base (sans tabs) dans l'image originale
+            const basePieceW = origImgW / CONFIG.cols;
+            const basePieceH = origImgH / CONFIG.rows;
             
-            // Ratio entre la taille du conteneur et l'image originale
-            const scaleX = containerRect.width / imgPieces.width;
-            const scaleY = containerRect.height / imgPieces.height;
+            // Ratio entre le conteneur affiché et l'image originale
+            const scaleX = containerRect.width / origImgW;
+            const scaleY = containerRect.height / origImgH;
             
-            // Position cible en pixels absolus dans le conteneur
-            const targetXPx = (col * basePieceW - tabSize) * scaleX;
-            const targetYPx = (row * basePieceH - tabSize) * scaleY;
+            // Position cible de la pièce dans le conteneur (en pixels)
+            const targetInContainerX = (col * basePieceW - tabSize) * scaleX;
+            const targetInContainerY = (row * basePieceH - tabSize) * scaleY;
             
-            // Position actuelle de la pièce
-            const currentXPx = el.offsetLeft;
-            const currentYPx = el.offsetTop;
+            // Position cible dans puzzleArea (en pixels)
+            const targetInAreaX = (containerRect.left - areaRect.left) + targetInContainerX;
+            const targetInAreaY = (containerRect.top - areaRect.top) + targetInContainerY;
+            
+            // Position actuelle de la pièce dans puzzleArea
+            const currentX = el.offsetLeft;
+            const currentY = el.offsetTop;
             
             // Distance en pixels
-            const distPx = Math.sqrt(
-                Math.pow(currentXPx - targetXPx, 2) + 
-                Math.pow(currentYPx - targetYPx, 2)
+            const dist = Math.sqrt(
+                Math.pow(currentX - targetInAreaX, 2) + 
+                Math.pow(currentY - targetInAreaY, 2)
             );
             
-            // Seuil en pixels (plus tolérant sur mobile)
-            const isMobile = window.innerWidth < 600;
-            const thresholdPx = isMobile ? 30 : 15;
+            // Seuil adaptatif (plus tolérant sur mobile et petits écrans)
+            const baseThreshold = Math.min(containerRect.width, containerRect.height) * 0.05;
+            const thresholdPx = Math.max(15, Math.min(35, baseThreshold));
 
-            if (distPx < thresholdPx) {
-                snapPiece(el, targetXPx, targetYPx);
+            if (dist < thresholdPx) {
+                snapPiece(el, targetInAreaX, targetInAreaY);
             }
         }
 
         function snapPiece(el, xPx, yPx) {
             el.style.left = `${xPx}px`;
             el.style.top = `${yPx}px`;
+            
+            // Stocker en pourcentages
+            const areaRect = puzzleArea.getBoundingClientRect();
+            el.dataset.leftPercent = (xPx / areaRect.width) * 100;
+            el.dataset.topPercent = (yPx / areaRect.height) * 100;
+            el.dataset.isLocked = 'true';
+            
             el.classList.add('locked');
             lockedCount++;
             if (lockedCount === totalPieces) onWin();
         }
+
+        // --- GESTION DU REDIMENSIONNEMENT ---
+        function handleResize() {
+            const areaRect = puzzleArea.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            // Mettre à jour la taille du puzzle
+            updatePuzzleSize();
+            
+            // Repositionner les pièces
+            pieces.forEach(piece => {
+                // Recalculer la taille de la pièce
+                const totalW = parseFloat(piece.dataset.pieceWidth);
+                const origImgW = parseFloat(piece.dataset.origImgW);
+                const newContainerRect = container.getBoundingClientRect();
+                const newAreaRect = puzzleArea.getBoundingClientRect();
+                
+                const pieceWidthPx = (totalW / origImgW) * newContainerRect.width;
+                const pieceWidthPercent = (pieceWidthPx / newAreaRect.width) * 100;
+                piece.style.width = `${pieceWidthPercent}%`;
+                
+                if (piece.dataset.isLocked === 'true') {
+                    // Recalculer la position exacte pour les pièces verrouillées
+                    const row = parseInt(piece.dataset.row);
+                    const col = parseInt(piece.dataset.col);
+                    const tabSize = parseFloat(piece.dataset.tabSize);
+                    const origImgH = parseFloat(piece.dataset.origImgH);
+                    
+                    const basePieceW = origImgW / CONFIG.cols;
+                    const basePieceH = origImgH / CONFIG.rows;
+                    
+                    const scaleX = newContainerRect.width / origImgW;
+                    const scaleY = newContainerRect.height / origImgH;
+                    
+                    const targetInContainerX = (col * basePieceW - tabSize) * scaleX;
+                    const targetInContainerY = (row * basePieceH - tabSize) * scaleY;
+                    
+                    const targetInAreaX = (newContainerRect.left - newAreaRect.left) + targetInContainerX;
+                    const targetInAreaY = (newContainerRect.top - newAreaRect.top) + targetInContainerY;
+                    
+                    piece.style.left = `${targetInAreaX}px`;
+                    piece.style.top = `${targetInAreaY}px`;
+                } else {
+                    // Repositionner avec les pourcentages stockés
+                    const leftPercent = parseFloat(piece.dataset.leftPercent) || 0;
+                    const topPercent = parseFloat(piece.dataset.topPercent) || 0;
+                    
+                    piece.style.left = `${(leftPercent / 100) * newAreaRect.width}px`;
+                    piece.style.top = `${(topPercent / 100) * newAreaRect.height}px`;
+                }
+            });
+        }
+
+        // Debounce pour le resize
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(handleResize, 100);
+        });
+
+        // Aussi gérer le changement d'orientation sur mobile
+        window.addEventListener('orientationchange', () => {
+            setTimeout(handleResize, 200);
+        });
 
         function onWin() {
             container.classList.add('puzzle-complete');
