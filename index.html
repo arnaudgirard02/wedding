@@ -9,6 +9,7 @@
         * {
             box-sizing: border-box;
             user-select: none;
+            -webkit-user-select: none;
             -webkit-touch-callout: none;
         }
 
@@ -70,12 +71,10 @@
             background-color: #ffffff;
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            /* Taille fixe : 320x240 (ratio 4:3) - parfait pour mobile */
             width: 320px;
             height: 240px;
         }
 
-        /* Tablette / Desktop */
         @media (min-width: 500px) {
             #puzzle-container {
                 width: 480px;
@@ -114,11 +113,15 @@
             border-radius: 8px;
         }
 
+        /* Pièces en DIV avec background-image et clip-path */
         .piece {
             position: absolute;
             cursor: grab;
             z-index: 60;
             touch-action: none;
+            background-image: url('guide.jpg');
+            background-repeat: no-repeat;
+            /* Le clip-path sera défini inline */
         }
 
         .piece.dragging {
@@ -169,6 +172,7 @@
 
         .puzzle-complete #final-reveal { opacity: 1; }
         .puzzle-complete #puzzle-guide { opacity: 0; }
+        .puzzle-complete .piece { opacity: 0; }
         .puzzle-complete { box-shadow: 0 15px 40px rgba(0,0,0,0.2); }
     </style>
 </head>
@@ -192,13 +196,10 @@
     </div>
 
     <script>
-        // Configuration fixe pour cette image (2048x1536, ratio 4:3)
         const CONFIG = {
             rows: 3,
             cols: 4,
-            imgWidth: 2048,
-            imgHeight: 1536,
-            tabPercent: 0.20
+            tabPercent: 0.18
         };
 
         const container = document.getElementById('puzzle-container');
@@ -208,34 +209,11 @@
         let piecesData = [];
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
-        let shapes = null;
 
-        // Charger l'image
-        const img = new Image();
-        img.src = 'guide.jpg';
-        img.onload = init;
-
-        function init() {
-            // Générer les formes une seule fois
-            shapes = generateShapes();
-
-            // Initialiser les données
-            for (let r = 0; r < CONFIG.rows; r++) {
-                for (let c = 0; c < CONFIG.cols; c++) {
-                    piecesData.push({
-                        row: r,
-                        col: c,
-                        shape: shapes[r * CONFIG.cols + c],
-                        locked: false,
-                        x: 0,
-                        y: 0
-                    });
-                }
-            }
-
-            createPieces();
-            scramble();
-        }
+        // Formes des tabs (générées une fois)
+        // 0 = bord plat, 1 = tab sortant, -1 = tab rentrant
+        // [top, right, bottom, left]
+        const shapes = generateShapes();
 
         function generateShapes() {
             const s = [];
@@ -252,143 +230,183 @@
             return s;
         }
 
+        // Initialiser les données des pièces
+        for (let r = 0; r < CONFIG.rows; r++) {
+            for (let c = 0; c < CONFIG.cols; c++) {
+                piecesData.push({
+                    row: r,
+                    col: c,
+                    shape: shapes[r * CONFIG.cols + c],
+                    locked: false,
+                    x: 0,
+                    y: 0
+                });
+            }
+        }
+
+        // Créer les pièces
+        createPieces();
+        scramble();
+
         function createPieces() {
-            // Supprimer les anciennes
             pieces.forEach(p => p.remove());
             pieces = [];
 
-            // Dimensions du conteneur
             const cw = container.offsetWidth;
             const ch = container.offsetHeight;
-
-            // Taille d'une pièce de base (sans tab)
             const pieceW = cw / CONFIG.cols;
             const pieceH = ch / CONFIG.rows;
             const tabSize = Math.min(pieceW, pieceH) * CONFIG.tabPercent;
 
-            // Taille totale avec tabs
-            const totalW = pieceW + tabSize * 2;
-            const totalH = pieceH + tabSize * 2;
-
-            // Scale pour dessiner depuis l'image source
-            const scaleX = CONFIG.imgWidth / cw;
-            const scaleY = CONFIG.imgHeight / ch;
-
             for (let i = 0; i < piecesData.length; i++) {
                 const d = piecesData[i];
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
+                const piece = document.createElement('div');
+                piece.className = 'piece';
+                if (d.locked) piece.classList.add('locked');
 
-                canvas.width = totalW;
-                canvas.height = totalH;
-                canvas.className = 'piece';
-                if (d.locked) canvas.classList.add('locked');
+                // Taille de la pièce (avec espace pour les tabs)
+                const totalW = pieceW + tabSize * 2;
+                const totalH = pieceH + tabSize * 2;
 
-                // Méthode alternative pour iOS : utiliser destination-in au lieu de clip()
-                // Étape 1: Dessiner l'image complète
-                const srcX = (d.col * pieceW - tabSize) * scaleX;
-                const srcY = (d.row * pieceH - tabSize) * scaleY;
-                const srcW = totalW * scaleX;
-                const srcH = totalH * scaleY;
-                ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, totalW, totalH);
+                piece.style.width = totalW + 'px';
+                piece.style.height = totalH + 'px';
 
-                // Étape 2: Utiliser destination-in pour masquer avec la forme
-                ctx.globalCompositeOperation = 'destination-in';
-                ctx.beginPath();
+                // Position du background pour montrer la bonne partie de l'image
+                const bgX = -(d.col * pieceW - tabSize);
+                const bgY = -(d.row * pieceH - tabSize);
+                piece.style.backgroundPosition = `${bgX}px ${bgY}px`;
+                piece.style.backgroundSize = `${cw}px ${ch}px`;
 
-                let x = tabSize, y = tabSize;
-                ctx.moveTo(x, y);
-
-                // Top
-                if (d.shape[0] !== 0) drawTab(ctx, x, y, pieceW, 0, d.shape[0] * tabSize);
-                else ctx.lineTo(x + pieceW, y);
-                x += pieceW;
-
-                // Right
-                if (d.shape[1] !== 0) drawTab(ctx, x, y, 0, pieceH, d.shape[1] * tabSize);
-                else ctx.lineTo(x, y + pieceH);
-                y += pieceH;
-
-                // Bottom
-                if (d.shape[2] !== 0) drawTab(ctx, x, y, -pieceW, 0, d.shape[2] * tabSize);
-                else ctx.lineTo(x - pieceW, y);
-                x -= pieceW;
-
-                // Left
-                if (d.shape[3] !== 0) drawTab(ctx, x, y, 0, -pieceH, d.shape[3] * tabSize);
-                else ctx.lineTo(x, y - pieceH);
-
-                ctx.closePath();
-                ctx.fill();
-
-                // Étape 3: Remettre le mode normal et dessiner les contours
-                ctx.globalCompositeOperation = 'source-over';
-
-                // Re-tracer le path pour les contours
-                ctx.beginPath();
-                x = tabSize; y = tabSize;
-                ctx.moveTo(x, y);
-                if (d.shape[0] !== 0) drawTab(ctx, x, y, pieceW, 0, d.shape[0] * tabSize);
-                else ctx.lineTo(x + pieceW, y);
-                x += pieceW;
-                if (d.shape[1] !== 0) drawTab(ctx, x, y, 0, pieceH, d.shape[1] * tabSize);
-                else ctx.lineTo(x, y + pieceH);
-                y += pieceH;
-                if (d.shape[2] !== 0) drawTab(ctx, x, y, -pieceW, 0, d.shape[2] * tabSize);
-                else ctx.lineTo(x - pieceW, y);
-                x -= pieceW;
-                if (d.shape[3] !== 0) drawTab(ctx, x, y, 0, -pieceH, d.shape[3] * tabSize);
-                else ctx.lineTo(x, y - pieceH);
-                ctx.closePath();
-
-                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
+                // Générer le clip-path SVG pour la forme de la pièce
+                const clipPath = generateClipPath(d.shape, pieceW, pieceH, tabSize, totalW, totalH);
+                piece.style.clipPath = clipPath;
+                piece.style.webkitClipPath = clipPath;
 
                 // Position
                 if (d.locked) {
-                    canvas.style.left = (d.col * pieceW - tabSize) + 'px';
-                    canvas.style.top = (d.row * pieceH - tabSize) + 'px';
+                    piece.style.left = (d.col * pieceW - tabSize) + 'px';
+                    piece.style.top = (d.row * pieceH - tabSize) + 'px';
                 } else {
-                    canvas.style.left = d.x + 'px';
-                    canvas.style.top = d.y + 'px';
+                    piece.style.left = d.x + 'px';
+                    piece.style.top = d.y + 'px';
                 }
 
-                canvas.dataset.index = i;
-                addDrag(canvas, i, pieceW, pieceH, tabSize);
-                container.appendChild(canvas);
-                pieces.push(canvas);
+                piece.dataset.index = i;
+                addDrag(piece, i, pieceW, pieceH, tabSize);
+                container.appendChild(piece);
+                pieces.push(piece);
             }
         }
 
-        function drawTab(ctx, x, y, dx, dy, size) {
-            const len = Math.sqrt(dx*dx + dy*dy);
-            const neck = len * 0.35;
-            const ux = dx/len, uy = dy/len;
-            const nx = -uy, ny = ux;
-            const sign = size > 0 ? 1 : -1;
-            const h = Math.abs(size);
+        function generateClipPath(shape, pieceW, pieceH, tabSize, totalW, totalH) {
+            // Générer un path SVG pour le clip-path
+            // On travaille en pourcentages pour que ça scale bien
+            const points = [];
 
-            const x1 = x + ux*(len-neck)/2, y1 = y + uy*(len-neck)/2;
-            const x2 = x + ux*(len+neck)/2, y2 = y + uy*(len+neck)/2;
+            // Convertir en pourcentages
+            const toPctX = (x) => (x / totalW * 100).toFixed(2);
+            const toPctY = (y) => (y / totalH * 100).toFixed(2);
 
-            ctx.lineTo(x1, y1);
+            // Point de départ (coin haut-gauche de la pièce, pas du canvas)
+            let x = tabSize;
+            let y = tabSize;
 
-            const cx1 = x1 + nx*sign*h*0.2, cy1 = y1 + ny*sign*h*0.2;
-            const tx1 = x + ux*(len/2-neck*0.5) + nx*sign*h;
-            const ty1 = y + uy*(len/2-neck*0.5) + ny*sign*h;
-            const mx = x + ux*len/2 + nx*sign*h;
-            const my = y + uy*len/2 + ny*sign*h;
-            const tx2 = x + ux*(len/2+neck*0.5) + nx*sign*h;
-            const ty2 = y + uy*(len/2+neck*0.5) + ny*sign*h;
-            const cx2 = x2 + nx*sign*h*0.2, cy2 = y2 + ny*sign*h*0.2;
+            // On va construire un path en utilisant polygon() pour simplicité
+            // Pour les tabs, on utilise des approximations avec plusieurs points
 
-            ctx.bezierCurveTo(cx1, cy1, tx1, ty1, mx, my);
-            ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
-            ctx.lineTo(x + dx, y + dy);
+            const pathPoints = [];
+
+            // --- TOP EDGE ---
+            if (shape[0] === 0) {
+                // Bord plat
+                pathPoints.push(`${toPctX(x)}% ${toPctY(y)}%`);
+                pathPoints.push(`${toPctX(x + pieceW)}% ${toPctY(y)}%`);
+            } else {
+                // Tab
+                const dir = shape[0]; // 1 = vers le haut (sortant), -1 = vers le bas (rentrant)
+                const tabH = tabSize * dir;
+                const neck = pieceW * 0.35;
+                const neckStart = x + (pieceW - neck) / 2;
+                const neckEnd = x + (pieceW + neck) / 2;
+                const tabTop = y - tabH;
+
+                pathPoints.push(`${toPctX(x)}% ${toPctY(y)}%`);
+                pathPoints.push(`${toPctX(neckStart)}% ${toPctY(y)}%`);
+                pathPoints.push(`${toPctX(neckStart - neck*0.2)}% ${toPctY(tabTop + tabH*0.3)}%`);
+                pathPoints.push(`${toPctX(x + pieceW/2 - neck*0.4)}% ${toPctY(tabTop)}%`);
+                pathPoints.push(`${toPctX(x + pieceW/2)}% ${toPctY(tabTop)}%`);
+                pathPoints.push(`${toPctX(x + pieceW/2 + neck*0.4)}% ${toPctY(tabTop)}%`);
+                pathPoints.push(`${toPctX(neckEnd + neck*0.2)}% ${toPctY(tabTop + tabH*0.3)}%`);
+                pathPoints.push(`${toPctX(neckEnd)}% ${toPctY(y)}%`);
+                pathPoints.push(`${toPctX(x + pieceW)}% ${toPctY(y)}%`);
+            }
+            x += pieceW;
+
+            // --- RIGHT EDGE ---
+            if (shape[1] === 0) {
+                pathPoints.push(`${toPctX(x)}% ${toPctY(y + pieceH)}%`);
+            } else {
+                const dir = shape[1];
+                const tabW = tabSize * dir;
+                const neck = pieceH * 0.35;
+                const neckStart = y + (pieceH - neck) / 2;
+                const neckEnd = y + (pieceH + neck) / 2;
+                const tabRight = x + tabW;
+
+                pathPoints.push(`${toPctX(x)}% ${toPctY(neckStart)}%`);
+                pathPoints.push(`${toPctX(tabRight - tabW*0.3)}% ${toPctY(neckStart - neck*0.2)}%`);
+                pathPoints.push(`${toPctX(tabRight)}% ${toPctY(y + pieceH/2 - neck*0.4)}%`);
+                pathPoints.push(`${toPctX(tabRight)}% ${toPctY(y + pieceH/2)}%`);
+                pathPoints.push(`${toPctX(tabRight)}% ${toPctY(y + pieceH/2 + neck*0.4)}%`);
+                pathPoints.push(`${toPctX(tabRight - tabW*0.3)}% ${toPctY(neckEnd + neck*0.2)}%`);
+                pathPoints.push(`${toPctX(x)}% ${toPctY(neckEnd)}%`);
+                pathPoints.push(`${toPctX(x)}% ${toPctY(y + pieceH)}%`);
+            }
+            y += pieceH;
+
+            // --- BOTTOM EDGE ---
+            if (shape[2] === 0) {
+                pathPoints.push(`${toPctX(x - pieceW)}% ${toPctY(y)}%`);
+            } else {
+                const dir = shape[2];
+                const tabH = tabSize * dir;
+                const neck = pieceW * 0.35;
+                const neckEnd = x - (pieceW - neck) / 2;
+                const neckStart = x - (pieceW + neck) / 2;
+                const tabBottom = y + tabH;
+
+                pathPoints.push(`${toPctX(neckEnd)}% ${toPctY(y)}%`);
+                pathPoints.push(`${toPctX(neckEnd + neck*0.2)}% ${toPctY(tabBottom - tabH*0.3)}%`);
+                pathPoints.push(`${toPctX(x - pieceW/2 + neck*0.4)}% ${toPctY(tabBottom)}%`);
+                pathPoints.push(`${toPctX(x - pieceW/2)}% ${toPctY(tabBottom)}%`);
+                pathPoints.push(`${toPctX(x - pieceW/2 - neck*0.4)}% ${toPctY(tabBottom)}%`);
+                pathPoints.push(`${toPctX(neckStart - neck*0.2)}% ${toPctY(tabBottom - tabH*0.3)}%`);
+                pathPoints.push(`${toPctX(neckStart)}% ${toPctY(y)}%`);
+                pathPoints.push(`${toPctX(x - pieceW)}% ${toPctY(y)}%`);
+            }
+            x -= pieceW;
+
+            // --- LEFT EDGE ---
+            if (shape[3] === 0) {
+                // Retour au point de départ (implicite avec polygon)
+            } else {
+                const dir = shape[3];
+                const tabW = tabSize * dir;
+                const neck = pieceH * 0.35;
+                const neckEnd = y - (pieceH - neck) / 2;
+                const neckStart = y - (pieceH + neck) / 2;
+                const tabLeft = x - tabW;
+
+                pathPoints.push(`${toPctX(x)}% ${toPctY(neckEnd)}%`);
+                pathPoints.push(`${toPctX(tabLeft + tabW*0.3)}% ${toPctY(neckEnd + neck*0.2)}%`);
+                pathPoints.push(`${toPctX(tabLeft)}% ${toPctY(y - pieceH/2 + neck*0.4)}%`);
+                pathPoints.push(`${toPctX(tabLeft)}% ${toPctY(y - pieceH/2)}%`);
+                pathPoints.push(`${toPctX(tabLeft)}% ${toPctY(y - pieceH/2 - neck*0.4)}%`);
+                pathPoints.push(`${toPctX(tabLeft + tabW*0.3)}% ${toPctY(neckStart - neck*0.2)}%`);
+                pathPoints.push(`${toPctX(x)}% ${toPctY(neckStart)}%`);
+            }
+
+            return `polygon(${pathPoints.join(', ')})`;
         }
 
         function scramble() {
@@ -400,45 +418,42 @@
             pieces.forEach((p, i) => {
                 if (piecesData[i].locked) return;
 
-                const pw = p.width, ph = p.height;
+                const pw = p.offsetWidth, ph = p.offsetHeight;
                 let x, y;
 
-                // Zones: bas, gauche, droite
                 const zones = [];
 
                 // Bas
                 if (winH - rect.bottom > ph + 30) {
                     zones.push(() => {
-                        x = 10 + Math.random() * (winW - pw - 20);
-                        y = rect.bottom + 10 + Math.random() * (winH - rect.bottom - ph - 20);
+                        x = 10 + Math.random() * Math.max(0, winW - pw - 20);
+                        y = rect.bottom + 10 + Math.random() * Math.max(0, winH - rect.bottom - ph - 20);
                     });
                 }
 
                 // Gauche
                 if (rect.left > pw + 30) {
                     zones.push(() => {
-                        x = 10 + Math.random() * (rect.left - pw - 20);
-                        y = header + Math.random() * (winH - header - ph - 10);
+                        x = 10 + Math.random() * Math.max(0, rect.left - pw - 20);
+                        y = header + Math.random() * Math.max(0, winH - header - ph - 10);
                     });
                 }
 
                 // Droite
                 if (winW - rect.right > pw + 30) {
                     zones.push(() => {
-                        x = rect.right + 10 + Math.random() * (winW - rect.right - pw - 20);
-                        y = header + Math.random() * (winH - header - ph - 10);
+                        x = rect.right + 10 + Math.random() * Math.max(0, winW - rect.right - pw - 20);
+                        y = header + Math.random() * Math.max(0, winH - header - ph - 10);
                     });
                 }
 
-                // Fallback
                 if (zones.length === 0) {
-                    x = 10 + Math.random() * (winW - pw - 20);
-                    y = header + Math.random() * (winH - header - ph - 20);
+                    x = 10 + Math.random() * Math.max(0, winW - pw - 20);
+                    y = header + Math.random() * Math.max(0, winH - header - ph - 20);
                 } else {
                     zones[Math.floor(Math.random() * zones.length)]();
                 }
 
-                // Convertir en position relative au conteneur
                 const relX = x - rect.left;
                 const relY = y - rect.top;
 
@@ -480,7 +495,6 @@
                 dragging = false;
                 el.classList.remove('dragging');
 
-                // Check snap
                 const d = piecesData[index];
                 const targetX = d.col * pieceW - tabSize;
                 const targetY = d.row * pieceH - tabSize;
@@ -491,7 +505,6 @@
                 const threshold = Math.max(25, pieceW * 0.3);
 
                 if (dist < threshold) {
-                    // Snap!
                     el.style.left = targetX + 'px';
                     el.style.top = targetY + 'px';
                     el.classList.add('locked');
@@ -500,7 +513,6 @@
 
                     if (lockedCount === totalPieces) win();
                 } else {
-                    // Sauvegarder position
                     d.x = el.offsetLeft;
                     d.y = el.offsetTop;
                 }
@@ -529,13 +541,12 @@
             }, 500);
         }
 
-        // Resize: recréer les pièces
+        // Resize
         let resizeTimer;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(() => {
                 createPieces();
-                // Re-scramble les pièces non lockées
                 scramble();
             }, 200);
         });
