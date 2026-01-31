@@ -161,26 +161,23 @@
             position: absolute;
             cursor: grab;
             z-index: 60;
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
-            transition: transform 0.1s ease-out, filter 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: box-shadow 0.3s ease;
             touch-action: none;
+            transform-origin: top left;
         }
 
         .piece.dragging {
             z-index: 999;
             cursor: grabbing;
-            transform: scale(1.08);
-            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
-            transition: none;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.4);
         }
 
         .piece.locked {
             z-index: 100;
             cursor: default;
-            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             pointer-events: none;
-            transition: all 0.3s ease;
-            transform: none !important;
         }
 
         /* --- SUCCESS STATE --- */
@@ -310,6 +307,7 @@
         let imageRatio = 4/3; // Default, will be updated
         let containerRect = null;
         let isInitialized = false;
+        let currentScale = 1;
 
         // Génération des formes des pièces
         function generatePerfectShapes(rows, cols) {
@@ -446,6 +444,10 @@
             canvas.dataset.originalHeight = totalH;
             canvas.dataset.baseWidth = w;
             canvas.dataset.baseHeight = h;
+            canvas.dataset.scale = 1;
+
+            // Important: transform-origin en haut à gauche pour simplifier le positionnement
+            canvas.style.transformOrigin = 'top left';
 
             addDragListeners(canvas);
             container.appendChild(canvas);
@@ -473,15 +475,19 @@
             if (!isInitialized) return;
 
             containerRect = container.getBoundingClientRect();
-            const scaleX = containerRect.width / imgPieces.width;
-            const scaleY = containerRect.height / imgPieces.height;
+            // On utilise un scale uniforme pour éviter les distorsions
+            const scale = containerRect.width / imgPieces.width;
+
+            // Stocker le scale actuel pour les calculs de position
+            currentScale = scale;
 
             pieces.forEach(piece => {
-                const originalW = parseFloat(piece.dataset.originalWidth);
-                const originalH = parseFloat(piece.dataset.originalHeight);
-
-                piece.style.width = `${originalW * scaleX}px`;
-                piece.style.height = `${originalH * scaleY}px`;
+                // Utiliser transform scale au lieu de width/height CSS
+                // Cela évite les problèmes de rendu sur iOS Safari
+                if (!piece.classList.contains('dragging')) {
+                    piece.style.transform = `scale(${scale})`;
+                }
+                piece.dataset.scale = scale;
             });
         }
 
@@ -490,8 +496,7 @@
             if (!isInitialized) return;
 
             containerRect = container.getBoundingClientRect();
-            const scaleX = containerRect.width / imgPieces.width;
-            const scaleY = containerRect.height / imgPieces.height;
+            const scale = containerRect.width / imgPieces.width;
 
             pieces.forEach(piece => {
                 if (!piece.classList.contains('locked')) return;
@@ -502,11 +507,13 @@
                 const baseW = parseFloat(piece.dataset.baseWidth);
                 const baseH = parseFloat(piece.dataset.baseHeight);
 
-                const targetXPx = (col * baseW - tabSize) * scaleX;
-                const targetYPx = (row * baseH - tabSize) * scaleY;
+                const targetXPx = (col * baseW - tabSize) * scale;
+                const targetYPx = (row * baseH - tabSize) * scale;
 
                 piece.style.left = `${targetXPx}px`;
                 piece.style.top = `${targetYPx}px`;
+                piece.style.transform = `scale(${scale})`;
+                piece.dataset.scale = scale;
             });
         }
 
@@ -522,8 +529,12 @@
             pieces.forEach(piece => {
                 if (piece.classList.contains('locked')) return;
 
-                const pW = piece.offsetWidth || 80;
-                const pH = piece.offsetHeight || 60;
+                // Calculer la taille réelle avec le scale
+                const originalW = parseFloat(piece.dataset.originalWidth);
+                const originalH = parseFloat(piece.dataset.originalHeight);
+                const scale = parseFloat(piece.dataset.scale) || currentScale;
+                const pW = originalW * scale;
+                const pH = originalH * scale;
 
                 // Choisir une zone aléatoire avec pondération
                 const zone = selectZone(zones, pW, pH);
@@ -658,6 +669,10 @@
                 startY = clientY;
                 initialLeft = el.offsetLeft;
                 initialTop = el.offsetTop;
+
+                // Appliquer un scale légèrement plus grand pendant le drag
+                const baseScale = parseFloat(el.dataset.scale) || currentScale;
+                el.style.transform = `scale(${baseScale * 1.08})`;
             };
 
             const onMove = (e) => {
@@ -680,6 +695,10 @@
                 if (!isDragging) return;
                 isDragging = false;
                 el.classList.remove('dragging');
+
+                // Remettre le scale normal
+                const baseScale = parseFloat(el.dataset.scale) || currentScale;
+                el.style.transform = `scale(${baseScale})`;
 
                 if (hasMoved) {
                     checkSnap(el);
@@ -710,13 +729,12 @@
             const baseW = parseFloat(el.dataset.baseWidth);
             const baseH = parseFloat(el.dataset.baseHeight);
 
-            // Ratio de scale actuel
-            const scaleX = containerRect.width / imgPieces.width;
-            const scaleY = containerRect.height / imgPieces.height;
+            // Scale actuel
+            const scale = containerRect.width / imgPieces.width;
 
             // Position cible
-            const targetXPx = (col * baseW - tabSize) * scaleX;
-            const targetYPx = (row * baseH - tabSize) * scaleY;
+            const targetXPx = (col * baseW - tabSize) * scale;
+            const targetYPx = (row * baseH - tabSize) * scale;
 
             // Position actuelle
             const currentXPx = el.offsetLeft;
@@ -728,9 +746,10 @@
                 Math.pow(currentYPx - targetYPx, 2)
             );
 
-            // Seuil adaptatif basé sur la taille de la pièce
-            const pieceSize = Math.min(el.offsetWidth, el.offsetHeight);
-            const thresholdPx = Math.max(20, pieceSize * 0.25);
+            // Seuil adaptatif basé sur la taille de la pièce (avec scale)
+            const originalW = parseFloat(el.dataset.originalWidth);
+            const pieceSize = originalW * scale;
+            const thresholdPx = Math.max(25, pieceSize * 0.3);
 
             if (distPx < thresholdPx) {
                 snapPiece(el, targetXPx, targetYPx);
@@ -740,6 +759,11 @@
         function snapPiece(el, xPx, yPx) {
             el.style.left = `${xPx}px`;
             el.style.top = `${yPx}px`;
+
+            // Appliquer le scale normal (pas d'agrandissement)
+            const baseScale = parseFloat(el.dataset.scale) || currentScale;
+            el.style.transform = `scale(${baseScale})`;
+
             el.classList.add('locked');
             lockedCount++;
 
@@ -801,16 +825,23 @@
             pieces.forEach(piece => {
                 if (piece.classList.contains('locked')) return;
 
-                const pieceRect = piece.getBoundingClientRect();
-                const pW = pieceRect.width;
-                const pH = pieceRect.height;
+                // Calculer la taille réelle avec le scale
+                const originalW = parseFloat(piece.dataset.originalWidth);
+                const originalH = parseFloat(piece.dataset.originalHeight);
+                const scale = parseFloat(piece.dataset.scale) || currentScale;
+                const pW = originalW * scale;
+                const pH = originalH * scale;
+
+                // Calculer la position réelle de la pièce
+                const pieceLeft = containerRect.left + piece.offsetLeft;
+                const pieceTop = containerRect.top + piece.offsetTop;
 
                 // Vérifier si la pièce est visible
                 const isVisible = (
-                    pieceRect.right > 0 &&
-                    pieceRect.left < winW &&
-                    pieceRect.bottom > 0 &&
-                    pieceRect.top < winH
+                    pieceLeft + pW > 0 &&
+                    pieceLeft < winW &&
+                    pieceTop + pH > 0 &&
+                    pieceTop < winH
                 );
 
                 if (!isVisible) {
