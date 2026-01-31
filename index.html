@@ -6,38 +6,203 @@
     <title>Save the Date - Puzzle</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; padding: 0; background-color: #ffffff; color: #333; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; overflow: hidden; }
+        /* --- RESET & BASE --- */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Empêche le scroll sur mobile pendant le jeu */
+        }
 
-        #background-container { position: fixed; bottom: 0; left: 0; width: 100%; z-index: 0; pointer-events: none; }
-        #bg-img { width: 100%; height: auto; display: block; }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff; 
+            color: #333;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* Changé pour mieux gérer le haut sur mobile */
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
 
-        #game-ui { text-align: center; margin-top: 20px; z-index: 50; width: 90%; }
-        h1 { font-size: 1.1rem; font-weight: 400; }
-        .instruction-highlight { font-weight: 600; color: #dfa668; }
+        /* --- ARRIÈRE-PLAN --- */
+        #background-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: auto; 
+            z-index: 0;   
+            pointer-events: none;
+            display: flex;
+            align-items: flex-end; 
+            justify-content: center;
+        }
 
-        #puzzle-container { position: relative; z-index: 50; width: 90vw; max-width: 450px; margin-top: 15px; touch-action: none; }
-        #puzzle-guide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; opacity: 0.15; border: 1px dashed #ccc; border-radius: 8px; }
-        #final-reveal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; opacity: 0; z-index: 150; transition: opacity 0.8s; border-radius: 8px; }
+        #bg-img {
+            display: block;
+            width: 100%;
+            height: auto; 
+            opacity: 1; 
+        }
 
-        .piece { position: absolute; z-index: 60; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); cursor: grab; }
-        .piece.dragging { z-index: 1000; transform: scale(1.05); }
-        .piece.locked { z-index: 40; filter: none; pointer-events: none; transition: all 0.2s ease-out; }
+        /* --- UI ELEMENTS --- */
+        #game-ui {
+            text-align: center;
+            margin-top: 40px; /* Espace fixe depuis le haut */
+            margin-bottom: 20px;
+            z-index: 50; 
+            pointer-events: none;
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+        }
 
-        #success-message { position: fixed; bottom: -300px; left: 50%; transform: translateX(-50%); background: white; padding: 25px; border-radius: 30px; box-shadow: 0 15px 50px rgba(0,0,0,0.3); text-align: center; opacity: 0; transition: all 0.6s cubic-bezier(0.17, 0.84, 0.44, 1); width: 85%; max-width: 350px; z-index: 2000; }
-        #success-message.visible { bottom: 40px; opacity: 1; }
-        .btn-form { display: inline-block; background-color: #dfa668; color: white; text-decoration: none; padding: 14px 24px; border-radius: 50px; font-weight: 600; margin-top: 15px; }
+        h1 {
+            font-size: 1.2rem;
+            font-weight: 400;
+            margin: 0;
+            opacity: 0.8;
+            transition: opacity 0.5s ease;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            line-height: 1.4;
+        }
+
+        .instruction-highlight {
+            font-weight: 600;
+            color: #dfa668;
+        }
+
+        /* --- PUZZLE CONTAINER --- */
+        #puzzle-container {
+            position: relative;
+            z-index: 50; 
+            width: 90vw; /* Prend presque toute la largeur sur mobile */
+            max-width: 600px;
+            aspect-ratio: 4/3; 
+            background-color: #ffffff; 
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: background-color 0.5s;
+            margin-bottom: 20px; /* Espace en bas */
+        }
+
+        /* Le guide (image de fond atténuée - SANS DATE) */
+        #puzzle-guide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: 100% 100%;
+            opacity: 0.25; /* Un peu plus clair pour mieux voir les pièces par dessus */
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            z-index: 0;
+        }
+
+        /* L'image de RÉVÉLATION (AVEC DATE) */
+        #final-reveal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: 100% 100%;
+            opacity: 0;
+            z-index: 150; 
+            transition: opacity 1.5s ease-in-out;
+            pointer-events: none;
+            border-radius: 8px;
+        }
+
+        /* --- PIECES --- */
+        .piece {
+            position: absolute;
+            cursor: grab;
+            z-index: 60;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+            transition: transform 0.1s;
+            touch-action: none;
+        }
+
+        .piece.dragging {
+            z-index: 999; /* Très haut z-index pour ne jamais passer derrière */
+            cursor: grabbing;
+            transform: scale(1.1); /* Plus gros sur mobile pour voir sous le doigt */
+            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
+        }
+
+        .piece.locked {
+            z-index: 40;
+            cursor: default;
+            filter: none;
+            pointer-events: none; /* Une fois lockée, on ne la touche plus */
+            transition: all 0.3s ease;
+        }
+
+        /* --- SUCCESS STATE --- */
+        #success-message {
+            position: fixed; /* Fixe pour être sûr d'être visible */
+            bottom: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 20px 30px;
+            border-radius: 50px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            opacity: 0;
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 85%;
+            max-width: 400px;
+            z-index: 1000;
+        }
+
+        #success-message.visible {
+            bottom: 30px;
+            opacity: 1;
+        }
+
+        #success-message h2 {
+            margin: 0 0 5px 0;
+            color: #2c3e50;
+            font-size: 1.4rem;
+        }
+
+        #success-message p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.95rem;
+        }
+
+        .puzzle-complete #final-reveal {
+            opacity: 1; 
+        }
         
-        .puzzle-complete .piece { display: none; }
-        .puzzle-complete #final-reveal { opacity: 1; }
+        .puzzle-complete #puzzle-guide {
+            opacity: 0;
+        }
+        
+        .puzzle-complete#puzzle-container {
+            background-color: transparent;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+
     </style>
 </head>
 <body>
 
-    <div id="background-container"><img id="bg-img" src="bg.png"></div>
+    <div id="background-container">
+        <img id="bg-img" src="" alt="">
+    </div>
 
     <div id="game-ui">
-        <h1>Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
+        <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
     </div>
 
     <div id="puzzle-container">
@@ -47,184 +212,286 @@
 
     <div id="success-message">
         <h2>Félicitations !</h2>
-        <p>Vous connaissez la date et le lieu du mariage 🥰</p>
-        <a href="#" class="btn-form">Confirmer ma présence</a>
+        <p> Vous avez maintenant la date du mariage ! Hâte de vous y voir 🥰</p>
     </div>
 
     <script>
         const CONFIG = {
-            piecesSrc: 'guide.jpg', 
-            finalSrc: 'puzzle.png', 
-            rows: 2, // Réduit pour éviter de couper les visages horizontalement
-            cols: 3, 
-            tabSizeFactor: 0.15,
-            snapTolerance: 25 // Plus généreux pour l'UX mobile
+            piecesSrc: 'guide.jpg',   
+            finalSrc: 'puzzle.png',   
+            rows: 3,
+            cols: 4,
+            snapThreshold: 0.15,
+            tabSizePercent: 20
         };
 
         const container = document.getElementById('puzzle-container');
         const guide = document.getElementById('puzzle-guide');
         const finalReveal = document.getElementById('final-reveal');
+        const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
+
+        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
+        const bgImgElement = document.getElementById('bg-img');
+        
+        function tryLoadBackground(index) {
+            if (index >= possibleBackgrounds.length) return;
+            const currentName = possibleBackgrounds[index];
+            const tester = new Image();
+            tester.onload = () => { bgImgElement.src = currentName; };
+            tester.onerror = () => { tryLoadBackground(index + 1); };
+            tester.src = currentName;
+        }
+        tryLoadBackground(0);
 
         let pieces = [];
         let lockedCount = 0;
-        let img = new Image();
+        const totalPieces = CONFIG.rows * CONFIG.cols;
 
-        img.onload = () => {
-            const ratio = img.naturalWidth / img.naturalHeight;
-            const containerWidth = container.offsetWidth;
-            const containerHeight = containerWidth / ratio;
-            container.style.height = containerHeight + 'px';
-            
-            guide.style.backgroundImage = `url(${img.src})`;
-            finalReveal.style.backgroundImage = `url(${CONFIG.finalSrc})`;
-            setupPuzzle();
-        };
-        img.src = CONFIG.piecesSrc;
-
-        function setupPuzzle() {
-            const w = container.offsetWidth;
-            const h = container.offsetHeight;
-            const pw = w / CONFIG.cols;
-            const ph = h / CONFIG.rows;
-            const tab = Math.min(pw, ph) * CONFIG.tabSizeFactor;
-
-            // Génération de formes déterministes pour éviter les "accidents" visuels
+        function generatePerfectShapes(rows, cols) {
             const shapes = [];
-            for (let r = 0; r < CONFIG.rows; r++) {
-                shapes[r] = [];
-                for (let c = 0; c < CONFIG.cols; c++) {
-                    shapes[r][c] = {
-                        top: r > 0 ? -shapes[r-1][c].bottom : 0,
-                        right: c < CONFIG.cols - 1 ? 1 : 0, // On force le "mâle" à droite
-                        bottom: r < CONFIG.rows - 1 ? 1 : 0, // On force le "mâle" en bas
-                        left: c > 0 ? -shapes[r][c-1].right : 0
-                    };
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let top = 0, right = 0, bottom = 0, left = 0;
+                    if (r > 0) top = -shapes[(r - 1) * cols + c][2];
+                    if (c < cols - 1) right = Math.random() > 0.5 ? 1 : -1;
+                    if (r < rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
+                    if (c > 0) left = -shapes[r * cols + (c - 1)][1];
+                    shapes.push([top, right, bottom, left]);
                 }
             }
-
-            for (let r = 0; r < CONFIG.rows; r++) {
-                for (let c = 0; c < CONFIG.cols; c++) {
-                    createPiece(r, c, pw, ph, tab, shapes[r][c], w, h);
-                }
-            }
+            return shapes;
         }
 
-        function createPiece(r, c, pw, ph, tab, shape, totalW, totalH) {
+        const imgPieces = new Image();
+        imgPieces.src = CONFIG.piecesSrc;
+        
+        imgPieces.onload = () => {
+            const ratio = imgPieces.width / imgPieces.height;
+            container.style.aspectRatio = `${ratio}`;
+            guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
+            finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
+            initPuzzle();
+        };
+
+        imgPieces.onerror = () => {
+            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
+        };
+
+        function initPuzzle() {
+            const basePieceW = imgPieces.width / CONFIG.cols;
+            const basePieceH = imgPieces.height / CONFIG.rows;
+            const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
+
+            const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
+
+            for (let r = 0; r < CONFIG.rows; r++) {
+                for (let c = 0; c < CONFIG.cols; c++) {
+                    const shapeIndex = r * CONFIG.cols + c;
+                    createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, generatedShapes[shapeIndex]);
+                }
+            }
+            scramblePieces();
+        }
+
+        function createCanvasPiece(row, col, w, h, tabSize, shape) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const cw = pw + tab * 2;
-            const ch = ph + tab * 2;
+            const totalW = w + tabSize * 2;
+            const totalH = h + tabSize * 2;
             
-            canvas.width = cw;
-            canvas.height = ch;
-            canvas.className = 'piece';
-
-            // Dessin de la pièce
-            ctx.beginPath();
-            ctx.moveTo(tab, tab);
-            drawSide(ctx, tab, tab, tab + pw, tab, shape.top, tab, true);
-            drawSide(ctx, tab + pw, tab, tab + pw, tab + ph, shape.right, tab, false);
-            drawSide(ctx, tab + pw, tab + ph, tab, tab + ph, shape.bottom, tab, true);
-            drawSide(ctx, tab, tab + ph, tab, tab, shape.left, tab, false);
-            ctx.closePath();
+            canvas.width = totalW;
+            canvas.height = totalH;
+            canvas.classList.add('piece');
 
             ctx.save();
-            ctx.clip();
-            
-            // Calcul du ratio d'affichage vs source
-            const scaleX = img.naturalWidth / totalW;
-            const scaleY = img.naturalHeight / totalH;
-            
-            const sx = (c * pw - tab) * scaleX;
-            const sy = (r * ph - tab) * scaleY;
-            const sw = cw * scaleX;
-            const sh = ch * scaleY;
+            ctx.beginPath();
+            const offsetX = tabSize;
+            const offsetY = tabSize;
+            let x = offsetX, y = offsetY;
+            ctx.moveTo(x, y);
 
-            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y); 
+            x += w;
+            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h); 
+            y += h;
+            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y); 
+            x -= w;
+            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h); 
+
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(imgPieces, col * w - offsetX, row * h - offsetY, totalW, totalH, 0, 0, totalW, totalH);
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
 
-            // Effet de bordure plus doux
-            ctx.strokeStyle = "rgba(255,255,255,0.4)";
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            canvas.style.width = `${(totalW / (imgPieces.width)) * 100}%`;
+            canvas.style.height = 'auto';
+            const pctPerPixelX = 100 / imgPieces.width;
+            const pctPerPixelY = 100 / imgPieces.height;
+            canvas.dataset.targetX = (col * w - tabSize) * pctPerPixelX;
+            canvas.dataset.targetY = (row * h - tabSize) * pctPerPixelY;
 
-            // Positionnement aléatoire en bas de l'écran (zone de pioche)
-            const rect = container.getBoundingClientRect();
-            const startX = Math.random() * (window.innerWidth - cw);
-            const startY = (window.innerHeight * 0.7) + (Math.random() * 50);
-            
-            canvas.style.width = cw + 'px';
-            canvas.style.left = (startX - rect.left) + 'px';
-            canvas.style.top = (startY - rect.top) + 'px';
-
-            canvas.dataset.trX = (c * pw - tab);
-            canvas.dataset.trY = (r * ph - tab);
-
-            addEvents(canvas);
+            addDragListeners(canvas);
             container.appendChild(canvas);
             pieces.push(canvas);
         }
 
-        function drawSide(ctx, x1, y1, x2, y2, type, tab, isHoriz) {
-            if (type === 0) { ctx.lineTo(x2, y2); return; }
-            const cx = (x1 + x2) / 2;
-            const cy = (y1 + y2) / 2;
-            const nx = isHoriz ? 0 : -type * tab;
-            const ny = isHoriz ? type * tab : 0;
-            
-            ctx.quadraticCurveTo(cx + nx, cy + ny, x2, y2);
+        function drawTab(ctx, x, y, dx, dy, size) {
+            const l = Math.sqrt(dx*dx + dy*dy), neck = l * 0.35;
+            const ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
+            const x1 = x + ux * (l - neck)/2, y1 = y + uy * (l - neck)/2;
+            const x2 = x + ux * (l + neck)/2, y2 = y + uy * (l + neck)/2;
+            ctx.lineTo(x1, y1);
+            const h = Math.abs(size), sign = size > 0 ? 1 : -1;
+            const cx1 = x1 + nx * sign * h * 0.2, cy1 = y1 + ny * sign * h * 0.2;
+            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h, ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
+            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h, ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
+            const cx2 = x2 + nx * sign * h * 0.2, cy2 = y2 + ny * sign * h * 0.2;
+            ctx.bezierCurveTo(cx1, cy1, tx1, ty1, x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h);
+            ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
+            ctx.lineTo(x + dx, y + dy);
         }
 
-        function addEvents(el) {
-            let startX, startY, initialLeft, initialTop;
+        // --- NOUVELLE FONCTION DE MÉLANGE INTELLIGENTE ---
+        function scramblePieces() {
+            const containerRect = container.getBoundingClientRect();
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            // On récupère la hauteur du titre pour ne pas mettre de pièces dessus
+            const headerHeight = document.getElementById('game-ui').offsetHeight + 40; 
             
-            const start = (e) => {
-                const t = e.touches ? e.touches[0] : e;
-                el.classList.add('dragging');
-                startX = t.clientX;
-                startY = t.clientY;
-                initialLeft = parseFloat(el.style.left);
-                initialTop = parseFloat(el.style.top);
-                container.appendChild(el); 
-            };
+            const isMobile = winW < 600;
 
-            const move = (e) => {
-                if (!el.classList.contains('dragging')) return;
-                e.preventDefault();
-                const t = e.touches ? e.touches[0] : e;
-                el.style.left = (initialLeft + (t.clientX - startX)) + 'px';
-                el.style.top = (initialTop + (t.clientY - startY)) + 'px';
-            };
-
-            const end = () => {
-                if (!el.classList.contains('dragging')) return;
-                el.classList.remove('dragging');
+            pieces.forEach(piece => {
+                if(piece.classList.contains('locked')) return;
                 
-                const curX = parseFloat(el.style.left);
-                const curY = parseFloat(el.style.top);
-                const tarX = parseFloat(el.dataset.trX);
-                const tarY = parseFloat(el.dataset.trY);
+                const pW = piece.offsetWidth || 100;
+                const pH = piece.offsetHeight || 100;
+                
+                let minX, maxX, minY, maxY;
 
-                if (Math.hypot(curX - tarX, curY - tarY) < CONFIG.snapTolerance) {
-                    el.style.left = tarX + 'px';
-                    el.style.top = tarY + 'px';
-                    el.classList.add('locked');
-                    lockedCount++;
-                    if (lockedCount === pieces.length) {
-                        container.classList.add('puzzle-complete');
-                        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-                        setTimeout(() => successMsg.classList.add('visible'), 500);
+                if (isMobile) {
+                    // SUR MOBILE : On utilise tout l'écran SAUF le titre en haut
+                    minX = 10;
+                    maxX = winW - pW - 10;
+                    minY = headerHeight; // Jamais plus haut que le titre
+                    maxY = winH - pH - 10;
+
+                    // Petite optimisation : essayer de mettre plus de pièces en BAS si possible
+                    if ((winH - containerRect.bottom) > 150) {
+                        // S'il y a de la place en bas, on favorise cette zone (50% de chance)
+                        if (Math.random() > 0.5) {
+                            minY = containerRect.bottom;
+                        }
                     }
+                } else {
+                    // SUR DESKTOP : Logique classique (gauche/droite/bas)
+                    const side = Math.floor(Math.random() * 3);
+                    if (side === 0) { // Gauche
+                        minX = 10; maxX = containerRect.left - pW - 10;
+                        minY = headerHeight; maxY = winH - pH - 10;
+                    } else if (side === 1) { // Droite
+                        minX = containerRect.right + 10; maxX = winW - pW - 10;
+                        minY = headerHeight; maxY = winH - pH - 10;
+                    } else { // Bas
+                        minX = 10; maxX = winW - pW - 10;
+                        minY = containerRect.bottom + 10; maxY = winH - pH - 10;
+                    }
+                    // Fallback desktop
+                    if (maxX < minX) { minX = 10; maxX = winW - pW - 10; }
                 }
+                
+                // Calcul de position aléatoire
+                const pageX = minX + Math.random() * (maxX - minX);
+                const pageY = minY + Math.random() * (maxY - minY);
+
+                // Conversion importante vers le système de coordonnées du conteneur
+                piece.style.left = `${pageX - containerRect.left}px`;
+                piece.style.top = `${pageY - containerRect.top}px`;
+            });
+        }
+
+        function addDragListeners(el) {
+            let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
+            
+            const onStart = (e) => {
+                if (el.classList.contains('locked')) return; 
+                isDragging = true;
+                el.classList.add('dragging');
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+                startX = clientX; startY = clientY;
+                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
+            };
+            
+            const onMove = (e) => {
+                if (!isDragging) return;
+                e.preventDefault(); // Empêche le scroll page sur mobile
+                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+                el.style.left = `${initialLeft + (clientX - startX)}px`;
+                el.style.top = `${initialTop + (clientY - startY)}px`;
+            };
+            
+            const onEnd = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                el.classList.remove('dragging');
+                checkSnap(el);
             };
 
-            el.addEventListener('mousedown', start);
-            el.addEventListener('touchstart', start, {passive: false});
-            window.addEventListener('mousemove', move);
-            window.addEventListener('touchmove', move, {passive: false});
-            window.addEventListener('mouseup', end);
-            window.addEventListener('touchend', end);
+            el.addEventListener('mousedown', onStart); el.addEventListener('touchstart', onStart, {passive:false});
+            window.addEventListener('mousemove', onMove); window.addEventListener('touchmove', onMove, {passive:false});
+            window.addEventListener('mouseup', onEnd); window.addEventListener('touchend', onEnd);
+        }
+
+        function checkSnap(el) {
+            const containerW = container.offsetWidth;
+            const containerH = container.offsetHeight;
+            const currentX = (el.offsetLeft / containerW) * 100;
+            const currentY = (el.offsetTop / containerH) * 100;
+            const targetX = parseFloat(el.dataset.targetX);
+            const targetY = parseFloat(el.dataset.targetY);
+            const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
+            
+            // Seuil augmenté sur mobile (20) pour faciliter le jeu au doigt
+            const isMobile = window.innerWidth < 600;
+            const threshold = isMobile ? 20 : 8;
+
+            if (dist < threshold) {
+                snapPiece(el, targetX, targetY);
+            }
+        }
+
+        function snapPiece(el, x, y) {
+            el.style.left = `${x}%`;
+            el.style.top = `${y}%`;
+            el.classList.add('locked');
+            lockedCount++;
+            if (lockedCount === totalPieces) onWin();
+        }
+
+        function onWin() {
+            container.classList.add('puzzle-complete');
+            instructionText.style.opacity = '0';
+            setTimeout(() => {
+                instructionText.style.display = 'none';
+                successMsg.classList.add('visible');
+                triggerConfetti();
+            }, 500);
+        }
+
+        function triggerConfetti() {
+            var count = 200;
+            var defaults = { origin: { y: 1 }, zIndex: 9999 };
+            function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
+            fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            fire(0.1, { spread: 120, startVelocity: 45, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
         }
     </script>
 </body>
