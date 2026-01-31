@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Save the Date - Puzzle</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
@@ -11,26 +11,36 @@
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none;
+            -webkit-touch-callout: none;
         }
 
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
+        html {
             height: 100%;
+            height: -webkit-fill-available;
             overflow: hidden;
         }
 
         body {
-            background-color: #ffffff; 
+            margin: 0;
+            padding: 0;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            background-color: #ffffff;
             color: #333;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            position: relative;
+            height: 100%;
+            min-height: 100%;
+            min-height: -webkit-fill-available;
+            overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            touch-action: none;
         }
 
         /* --- ARRIÈRE-PLAN --- */
@@ -39,49 +49,47 @@
             bottom: 0;
             left: 0;
             width: 100%;
-            height: auto; 
-            z-index: 0;   
+            height: auto;
+            z-index: 0;
             pointer-events: none;
             display: flex;
-            align-items: flex-end; 
+            align-items: flex-end;
             justify-content: center;
         }
 
         #bg-img {
             display: block;
             width: 100%;
-            height: auto; 
-            opacity: 1; 
+            height: auto;
+            opacity: 1;
         }
 
-        /* --- GAME WRAPPER - Contrôle tout le layout --- */
+        /* --- MAIN GAME WRAPPER --- */
         #game-wrapper {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px;
-            z-index: 50;
+            width: 100%;
+            height: 100%;
+            padding: 15px;
             overflow: hidden;
+            position: relative;
+            z-index: 10;
         }
 
         /* --- UI ELEMENTS --- */
         #game-ui {
             text-align: center;
-            flex-shrink: 0;
-            z-index: 50; 
+            padding: 10px 0 15px 0;
+            z-index: 50;
             pointer-events: none;
             width: 100%;
             max-width: 600px;
-            padding: 10px 0 15px 0;
+            flex-shrink: 0;
         }
 
         h1 {
-            font-size: clamp(0.9rem, 3vw, 1.2rem);
+            font-size: clamp(0.9rem, 3.5vw, 1.2rem);
             font-weight: 400;
             margin: 0;
             opacity: 0.8;
@@ -95,7 +103,7 @@
             color: #dfa668;
         }
 
-        /* --- PUZZLE AREA - Zone de jeu flexible --- */
+        /* --- PUZZLE AREA (Zone de jeu complète) --- */
         #puzzle-area {
             position: relative;
             flex: 1;
@@ -104,20 +112,21 @@
             align-items: center;
             justify-content: center;
             min-height: 0; /* Important pour flex shrink */
+            overflow: visible;
         }
 
         /* --- PUZZLE CONTAINER --- */
         #puzzle-container {
             position: relative;
             z-index: 50;
-            background-color: #ffffff; 
+            background-color: #ffffff;
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: background-color 0.5s;
-            /* Tailles calculées dynamiquement par JS */
+            /* Dimensions calculées par JS */
         }
 
-        /* Le guide (image de fond atténuée) */
+        /* Le guide (image de fond atténuée - SANS DATE) */
         #puzzle-guide {
             position: absolute;
             top: 0;
@@ -132,7 +141,7 @@
             filter: blur(5px);
         }
 
-        /* L'image de RÉVÉLATION */
+        /* L'image de RÉVÉLATION (AVEC DATE) */
         #final-reveal {
             position: absolute;
             top: 0;
@@ -141,7 +150,7 @@
             height: 100%;
             background-size: 100% 100%;
             opacity: 0;
-            z-index: 150; 
+            z-index: 150;
             transition: opacity 1.5s ease-in-out;
             pointer-events: none;
             border-radius: 8px;
@@ -153,16 +162,17 @@
             cursor: grab;
             z-index: 60;
             filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
-            transition: transform 0.1s;
+            transition: transform 0.1s ease-out;
             touch-action: none;
-            /* Les pièces utilisent des % pour left/top relatifs au puzzle-area */
+            will-change: transform, left, top;
         }
 
         .piece.dragging {
             z-index: 999;
             cursor: grabbing;
-            transform: scale(1.1);
+            transform: scale(1.08);
             filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
+            transition: none;
         }
 
         .piece.locked {
@@ -171,28 +181,29 @@
             filter: none;
             pointer-events: none;
             transition: all 0.3s ease;
+            transform: none !important;
         }
 
         /* --- SUCCESS STATE --- */
         #success-message {
             position: fixed;
-            bottom: -100px;
+            bottom: -150px;
             left: 50%;
             transform: translateX(-50%);
             background: white;
-            padding: 20px 30px;
-            border-radius: 50px;
+            padding: 20px 25px;
+            border-radius: 30px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             text-align: center;
             opacity: 0;
             transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            width: 85%;
-            max-width: 400px;
+            width: calc(100% - 40px);
+            max-width: 380px;
             z-index: 1000;
         }
 
         #success-message.visible {
-            bottom: 30px;
+            bottom: max(20px, env(safe-area-inset-bottom));
             opacity: 1;
         }
 
@@ -203,50 +214,37 @@
         }
 
         #success-message p {
-            margin: 0 0 15px 0;
+            margin: 0;
             color: #7f8c8d;
             font-size: clamp(0.85rem, 3vw, 0.95rem);
         }
 
-        .btn-form {
-            display: inline-block;
-            padding: 12px 30px;
-            background-color: #dfa668;
-            color: white;
-            text-decoration: none;
-            border-radius: 25px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            transition: all 0.3s ease;
-            pointer-events: auto;
-            cursor: pointer;
-            border: none;
-            box-shadow: 0 4px 10px rgba(223, 166, 104, 0.3);
-        }
-
-        .btn-form:hover {
-            background-color: #c99359;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(223, 166, 104, 0.4);
-        }
-
-        .btn-form:active {
-            transform: scale(0.95);
-            background-color: #b8844f;
-        }
-
         .puzzle-complete #final-reveal {
-            opacity: 1; 
+            opacity: 1;
         }
-        
+
         .puzzle-complete #puzzle-guide {
             opacity: 0;
         }
-        
+
         .puzzle-complete#puzzle-container {
             background-color: transparent;
             box-shadow: 0 15px 40px rgba(0,0,0,0.2);
         }
+
+        /* Responsive adjustments */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #game-ui {
+                padding: 5px 0 10px 0;
+            }
+            h1 {
+                font-size: 0.85rem;
+            }
+            #game-wrapper {
+                padding: 10px;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -265,37 +263,37 @@
                 <div id="puzzle-guide"></div>
                 <div id="final-reveal"></div>
             </div>
-            <!-- Les pièces seront ajoutées ici dans puzzle-area -->
         </div>
     </div>
 
     <div id="success-message">
         <h2>Félicitations !</h2>
-        <p>Vous connaissez la date et le lieu du mariage 🥰</p>
-        <a href="https://formulaire.com" class="btn-form">Confirmer ma présence</a>
+        <p>Vous avez maintenant la date du mariage ! Hâte de vous y voir 🥰</p>
     </div>
 
     <script>
         const CONFIG = {
-            piecesSrc: 'guide.jpg',   
-            finalSrc: 'puzzle.png',   
+            piecesSrc: 'guide.jpg',
+            finalSrc: 'puzzle.png',
             rows: 3,
             cols: 4,
             snapThreshold: 0.15,
             tabSizePercent: 20
         };
 
-        const container = document.getElementById('puzzle-container');
+        // DOM Elements
+        const gameWrapper = document.getElementById('game-wrapper');
         const puzzleArea = document.getElementById('puzzle-area');
+        const container = document.getElementById('puzzle-container');
         const guide = document.getElementById('puzzle-guide');
         const finalReveal = document.getElementById('final-reveal');
         const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
-        const gameWrapper = document.getElementById('game-wrapper');
 
+        // Background loading
         const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
         const bgImgElement = document.getElementById('bg-img');
-        
+
         function tryLoadBackground(index) {
             if (index >= possibleBackgrounds.length) return;
             const currentName = possibleBackgrounds[index];
@@ -306,44 +304,15 @@
         }
         tryLoadBackground(0);
 
+        // Game state
         let pieces = [];
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
-        let imageRatio = 4/3; // Ratio par défaut, sera mis à jour
+        let imageRatio = 4/3; // Default, will be updated
+        let containerRect = null;
+        let isInitialized = false;
 
-        // --- CALCUL DE LA TAILLE DU PUZZLE ---
-        function calculatePuzzleSize() {
-            const areaRect = puzzleArea.getBoundingClientRect();
-            const availableW = areaRect.width * 0.85; // 85% de la largeur disponible
-            const availableH = areaRect.height * 0.7; // 70% de la hauteur disponible
-            
-            let puzzleW, puzzleH;
-            
-            // Calculer en fonction du ratio de l'image
-            if (availableW / availableH > imageRatio) {
-                // Limité par la hauteur
-                puzzleH = availableH;
-                puzzleW = puzzleH * imageRatio;
-            } else {
-                // Limité par la largeur
-                puzzleW = availableW;
-                puzzleH = puzzleW / imageRatio;
-            }
-            
-            // Limites min/max
-            puzzleW = Math.max(200, Math.min(puzzleW, 700));
-            puzzleH = puzzleW / imageRatio;
-            
-            return { width: puzzleW, height: puzzleH };
-        }
-
-        function updatePuzzleSize() {
-            const size = calculatePuzzleSize();
-            container.style.width = `${size.width}px`;
-            container.style.height = `${size.height}px`;
-            return size;
-        }
-
+        // Génération des formes des pièces
         function generatePerfectShapes(rows, cols) {
             const shapes = [];
             for (let r = 0; r < rows; r++) {
@@ -359,12 +328,12 @@
             return shapes;
         }
 
+        // Image loading
         const imgPieces = new Image();
         imgPieces.src = CONFIG.piecesSrc;
-        
+
         imgPieces.onload = () => {
             imageRatio = imgPieces.width / imgPieces.height;
-            updatePuzzleSize();
             guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
             finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
             initPuzzle();
@@ -374,7 +343,48 @@
             alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
         };
 
+        // Calcul de la taille optimale du conteneur
+        function calculateContainerSize() {
+            const areaRect = puzzleArea.getBoundingClientRect();
+            const padding = 10;
+            const availableWidth = areaRect.width - (padding * 2);
+            const availableHeight = areaRect.height - (padding * 2);
+
+            let containerWidth, containerHeight;
+
+            // Calculer en respectant le ratio de l'image
+            if (availableWidth / availableHeight > imageRatio) {
+                // Limité par la hauteur
+                containerHeight = availableHeight;
+                containerWidth = containerHeight * imageRatio;
+            } else {
+                // Limité par la largeur
+                containerWidth = availableWidth;
+                containerHeight = containerWidth / imageRatio;
+            }
+
+            // Limiter à 600px max sur desktop
+            const maxWidth = Math.min(600, window.innerWidth * 0.9);
+            if (containerWidth > maxWidth) {
+                containerWidth = maxWidth;
+                containerHeight = containerWidth / imageRatio;
+            }
+
+            return { width: containerWidth, height: containerHeight };
+        }
+
+        // Application de la taille du conteneur
+        function applyContainerSize() {
+            const size = calculateContainerSize();
+            container.style.width = `${size.width}px`;
+            container.style.height = `${size.height}px`;
+            containerRect = container.getBoundingClientRect();
+        }
+
+        // Initialisation du puzzle
         function initPuzzle() {
+            applyContainerSize();
+
             const basePieceW = imgPieces.width / CONFIG.cols;
             const basePieceH = imgPieces.height / CONFIG.rows;
             const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
@@ -387,7 +397,14 @@
                     createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, generatedShapes[shapeIndex]);
                 }
             }
-            scramblePieces();
+
+            isInitialized = true;
+
+            // Attendre que le DOM soit complètement rendu
+            requestAnimationFrame(() => {
+                updatePieceSizes();
+                scramblePieces();
+            });
         }
 
         function createCanvasPiece(row, col, w, h, tabSize, shape) {
@@ -395,7 +412,7 @@
             const ctx = canvas.getContext('2d');
             const totalW = w + tabSize * 2;
             const totalH = h + tabSize * 2;
-            
+
             canvas.width = totalW;
             canvas.height = totalH;
             canvas.classList.add('piece');
@@ -407,13 +424,13 @@
             let x = offsetX, y = offsetY;
             ctx.moveTo(x, y);
 
-            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y); 
+            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y);
             x += w;
-            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h); 
+            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h);
             y += h;
-            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y); 
+            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y);
             x -= w;
-            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h); 
+            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h);
 
             ctx.closePath();
             ctx.clip();
@@ -422,28 +439,17 @@
             ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
             ctx.restore();
 
-            // Stockage des données pour le calcul de position
-            canvas.dataset.pieceWidth = totalW;
-            canvas.dataset.pieceHeight = totalH;
+            // Stocker les données de la pièce
             canvas.dataset.row = row;
             canvas.dataset.col = col;
             canvas.dataset.tabSize = tabSize;
-            // Stocker les dimensions originales de l'image pour les calculs de ratio
-            canvas.dataset.origImgW = imgPieces.width;
-            canvas.dataset.origImgH = imgPieces.height;
-
-            canvas.style.position = 'absolute';
-            
-            // Calculer la largeur en % du puzzle-area
-            const containerRect = container.getBoundingClientRect();
-            const areaRect = puzzleArea.getBoundingClientRect();
-            const pieceWidthPx = (totalW / imgPieces.width) * containerRect.width;
-            const pieceWidthPercent = (pieceWidthPx / areaRect.width) * 100;
-            canvas.style.width = `${pieceWidthPercent}%`;
-            canvas.style.height = 'auto';
+            canvas.dataset.originalWidth = totalW;
+            canvas.dataset.originalHeight = totalH;
+            canvas.dataset.baseWidth = w;
+            canvas.dataset.baseHeight = h;
 
             addDragListeners(canvas);
-            puzzleArea.appendChild(canvas);
+            container.appendChild(canvas);
             pieces.push(canvas);
         }
 
@@ -463,285 +469,290 @@
             ctx.lineTo(x + dx, y + dy);
         }
 
-        // --- MÉLANGE DES PIÈCES RESPONSIVE ---
-        function scramblePieces() {
-            const areaRect = puzzleArea.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
-            
-            // Zones interdites (le puzzle lui-même) - en coordonnées relatives à puzzleArea
-            const puzzleLeft = containerRect.left - areaRect.left;
-            const puzzleRight = containerRect.right - areaRect.left;
-            const puzzleTop = containerRect.top - areaRect.top;
-            const puzzleBottom = containerRect.bottom - areaRect.top;
-            
+        // Mise à jour de la taille des pièces selon le conteneur
+        function updatePieceSizes() {
+            if (!isInitialized) return;
+
+            containerRect = container.getBoundingClientRect();
+            const scaleX = containerRect.width / imgPieces.width;
+            const scaleY = containerRect.height / imgPieces.height;
+
             pieces.forEach(piece => {
-                if(piece.classList.contains('locked')) return;
-                
-                const pW = piece.offsetWidth || 50;
-                const pH = piece.offsetHeight || 50;
-                
-                // Marge de sécurité
-                const margin = 10;
-                
-                // Calculer les zones disponibles autour du puzzle
-                const zones = [];
-                
-                // Zone gauche
-                if (puzzleLeft > pW + margin * 2) {
-                    zones.push({
-                        minX: margin,
-                        maxX: puzzleLeft - pW - margin,
-                        minY: margin,
-                        maxY: areaRect.height - pH - margin
-                    });
-                }
-                
-                // Zone droite
-                if (areaRect.width - puzzleRight > pW + margin * 2) {
-                    zones.push({
-                        minX: puzzleRight + margin,
-                        maxX: areaRect.width - pW - margin,
-                        minY: margin,
-                        maxY: areaRect.height - pH - margin
-                    });
-                }
-                
-                // Zone haut
-                if (puzzleTop > pH + margin * 2) {
-                    zones.push({
-                        minX: margin,
-                        maxX: areaRect.width - pW - margin,
-                        minY: margin,
-                        maxY: puzzleTop - pH - margin
-                    });
-                }
-                
-                // Zone bas
-                if (areaRect.height - puzzleBottom > pH + margin * 2) {
-                    zones.push({
-                        minX: margin,
-                        maxX: areaRect.width - pW - margin,
-                        minY: puzzleBottom + margin,
-                        maxY: areaRect.height - pH - margin
-                    });
-                }
-                
-                // Si aucune zone n'est assez grande, utiliser toute la zone
-                if (zones.length === 0) {
-                    zones.push({
-                        minX: margin,
-                        maxX: areaRect.width - pW - margin,
-                        minY: margin,
-                        maxY: areaRect.height - pH - margin
-                    });
-                }
-                
-                // Choisir une zone aléatoire
-                const zone = zones[Math.floor(Math.random() * zones.length)];
-                
-                // S'assurer que max > min
-                const safeMinX = Math.min(zone.minX, zone.maxX);
-                const safeMaxX = Math.max(zone.minX, zone.maxX);
-                const safeMinY = Math.min(zone.minY, zone.maxY);
-                const safeMaxY = Math.max(zone.minY, zone.maxY);
-                
-                // Position aléatoire dans la zone (en pixels relatifs à puzzleArea)
-                const posX = safeMinX + Math.random() * (safeMaxX - safeMinX);
-                const posY = safeMinY + Math.random() * (safeMaxY - safeMinY);
-                
-                // Stocker en pourcentages pour être responsive
-                const leftPercent = (posX / areaRect.width) * 100;
-                const topPercent = (posY / areaRect.height) * 100;
-                
-                piece.style.left = `${leftPercent}%`;
-                piece.style.top = `${topPercent}%`;
-                
-                // Stocker aussi la position en % pour le resize
-                piece.dataset.leftPercent = leftPercent;
-                piece.dataset.topPercent = topPercent;
+                const originalW = parseFloat(piece.dataset.originalWidth);
+                const originalH = parseFloat(piece.dataset.originalHeight);
+
+                piece.style.width = `${originalW * scaleX}px`;
+                piece.style.height = `${originalH * scaleY}px`;
             });
         }
 
+        // Repositionner les pièces lockées après resize
+        function repositionLockedPieces() {
+            if (!isInitialized) return;
+
+            containerRect = container.getBoundingClientRect();
+            const scaleX = containerRect.width / imgPieces.width;
+            const scaleY = containerRect.height / imgPieces.height;
+
+            pieces.forEach(piece => {
+                if (!piece.classList.contains('locked')) return;
+
+                const row = parseInt(piece.dataset.row);
+                const col = parseInt(piece.dataset.col);
+                const tabSize = parseFloat(piece.dataset.tabSize);
+                const baseW = parseFloat(piece.dataset.baseWidth);
+                const baseH = parseFloat(piece.dataset.baseHeight);
+
+                const targetXPx = (col * baseW - tabSize) * scaleX;
+                const targetYPx = (row * baseH - tabSize) * scaleY;
+
+                piece.style.left = `${targetXPx}px`;
+                piece.style.top = `${targetYPx}px`;
+            });
+        }
+
+        // Mélange intelligent des pièces
+        function scramblePieces() {
+            if (!isInitialized) return;
+
+            containerRect = container.getBoundingClientRect();
+
+            // Zone de jeu disponible (en dehors du conteneur)
+            const zones = getScrambleZones();
+
+            pieces.forEach(piece => {
+                if (piece.classList.contains('locked')) return;
+
+                const pW = piece.offsetWidth || 80;
+                const pH = piece.offsetHeight || 60;
+
+                // Choisir une zone aléatoire avec pondération
+                const zone = selectZone(zones, pW, pH);
+
+                if (zone) {
+                    // Position aléatoire dans la zone
+                    const pageX = zone.minX + Math.random() * Math.max(0, zone.maxX - zone.minX - pW);
+                    const pageY = zone.minY + Math.random() * Math.max(0, zone.maxY - zone.minY - pH);
+
+                    // Convertir en coordonnées relatives au conteneur
+                    piece.style.left = `${pageX - containerRect.left}px`;
+                    piece.style.top = `${pageY - containerRect.top}px`;
+                } else {
+                    // Fallback: placer autour du conteneur
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.max(containerRect.width, containerRect.height) * 0.6;
+                    const centerX = containerRect.width / 2;
+                    const centerY = containerRect.height / 2;
+
+                    piece.style.left = `${centerX + Math.cos(angle) * distance - pW/2}px`;
+                    piece.style.top = `${centerY + Math.sin(angle) * distance - pH/2}px`;
+                }
+            });
+        }
+
+        // Calculer les zones disponibles pour le mélange
+        function getScrambleZones() {
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const padding = 10;
+            const headerHeight = document.getElementById('game-ui').offsetHeight + 20;
+
+            const zones = [];
+
+            // Zone gauche
+            if (containerRect.left > 100) {
+                zones.push({
+                    minX: padding,
+                    maxX: containerRect.left - padding,
+                    minY: headerHeight,
+                    maxY: winH - padding,
+                    weight: containerRect.left - padding
+                });
+            }
+
+            // Zone droite
+            if (winW - containerRect.right > 100) {
+                zones.push({
+                    minX: containerRect.right + padding,
+                    maxX: winW - padding,
+                    minY: headerHeight,
+                    maxY: winH - padding,
+                    weight: winW - containerRect.right - padding
+                });
+            }
+
+            // Zone bas
+            if (winH - containerRect.bottom > 80) {
+                zones.push({
+                    minX: padding,
+                    maxX: winW - padding,
+                    minY: containerRect.bottom + padding,
+                    maxY: winH - padding,
+                    weight: (winH - containerRect.bottom) * 2 // Pondération plus forte pour le bas
+                });
+            }
+
+            // Zone haut (entre titre et conteneur)
+            if (containerRect.top - headerHeight > 80) {
+                zones.push({
+                    minX: padding,
+                    maxX: winW - padding,
+                    minY: headerHeight,
+                    maxY: containerRect.top - padding,
+                    weight: containerRect.top - headerHeight
+                });
+            }
+
+            // Si aucune zone suffisante, utiliser tout l'écran (mode mobile compact)
+            if (zones.length === 0) {
+                zones.push({
+                    minX: padding,
+                    maxX: winW - padding,
+                    minY: headerHeight,
+                    maxY: winH - padding,
+                    weight: 1
+                });
+            }
+
+            return zones;
+        }
+
+        // Sélectionner une zone avec pondération
+        function selectZone(zones, pieceW, pieceH) {
+            // Filtrer les zones qui peuvent contenir la pièce
+            const validZones = zones.filter(z =>
+                (z.maxX - z.minX) >= pieceW &&
+                (z.maxY - z.minY) >= pieceH
+            );
+
+            if (validZones.length === 0) return zones[0]; // Fallback
+
+            const totalWeight = validZones.reduce((sum, z) => sum + z.weight, 0);
+            let random = Math.random() * totalWeight;
+
+            for (const zone of validZones) {
+                random -= zone.weight;
+                if (random <= 0) return zone;
+            }
+
+            return validZones[0];
+        }
+
+        // Gestion du drag & drop
         function addDragListeners(el) {
-            let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
-            
+            let startX = 0, startY = 0, initialLeft = 0, initialTop = 0;
+            let isDragging = false;
+            let hasMoved = false;
+
             const onStart = (e) => {
-                if (el.classList.contains('locked')) return; 
+                if (el.classList.contains('locked')) return;
+
+                e.preventDefault();
                 isDragging = true;
+                hasMoved = false;
                 el.classList.add('dragging');
+
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                startX = clientX; 
+
+                startX = clientX;
                 startY = clientY;
-                
-                // Récupérer la position actuelle en pixels
-                const areaRect = puzzleArea.getBoundingClientRect();
                 initialLeft = el.offsetLeft;
                 initialTop = el.offsetTop;
             };
-            
+
             const onMove = (e) => {
                 if (!isDragging) return;
                 e.preventDefault();
+
+                hasMoved = true;
+
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                
+
                 const newLeft = initialLeft + (clientX - startX);
                 const newTop = initialTop + (clientY - startY);
-                
+
                 el.style.left = `${newLeft}px`;
                 el.style.top = `${newTop}px`;
             };
-            
+
             const onEnd = () => {
                 if (!isDragging) return;
                 isDragging = false;
                 el.classList.remove('dragging');
-                
-                // Convertir en pourcentages pour le stockage
-                const areaRect = puzzleArea.getBoundingClientRect();
-                const leftPx = el.offsetLeft;
-                const topPx = el.offsetTop;
-                el.dataset.leftPercent = (leftPx / areaRect.width) * 100;
-                el.dataset.topPercent = (topPx / areaRect.height) * 100;
-                
-                checkSnap(el);
+
+                if (hasMoved) {
+                    checkSnap(el);
+                }
             };
 
-            el.addEventListener('mousedown', onStart); 
-            el.addEventListener('touchstart', onStart, {passive: false});
-            window.addEventListener('mousemove', onMove); 
-            window.addEventListener('touchmove', onMove, {passive: false});
-            window.addEventListener('mouseup', onEnd); 
+            // Mouse events
+            el.addEventListener('mousedown', onStart);
+
+            // Touch events avec options passive: false pour permettre preventDefault
+            el.addEventListener('touchstart', onStart, { passive: false });
+
+            // Global move/end events
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('mouseup', onEnd);
             window.addEventListener('touchend', onEnd);
+            window.addEventListener('touchcancel', onEnd);
         }
 
+        // Vérification du snap
         function checkSnap(el) {
-            const containerRect = container.getBoundingClientRect();
-            const areaRect = puzzleArea.getBoundingClientRect();
+            containerRect = container.getBoundingClientRect();
+
             const row = parseInt(el.dataset.row);
             const col = parseInt(el.dataset.col);
             const tabSize = parseFloat(el.dataset.tabSize);
-            const origImgW = parseFloat(el.dataset.origImgW);
-            const origImgH = parseFloat(el.dataset.origImgH);
-            
-            // Taille d'une pièce de base (sans tabs) dans l'image originale
-            const basePieceW = origImgW / CONFIG.cols;
-            const basePieceH = origImgH / CONFIG.rows;
-            
-            // Ratio entre le conteneur affiché et l'image originale
-            const scaleX = containerRect.width / origImgW;
-            const scaleY = containerRect.height / origImgH;
-            
-            // Position cible de la pièce dans le conteneur (en pixels)
-            const targetInContainerX = (col * basePieceW - tabSize) * scaleX;
-            const targetInContainerY = (row * basePieceH - tabSize) * scaleY;
-            
-            // Position cible dans puzzleArea (en pixels)
-            const targetInAreaX = (containerRect.left - areaRect.left) + targetInContainerX;
-            const targetInAreaY = (containerRect.top - areaRect.top) + targetInContainerY;
-            
-            // Position actuelle de la pièce dans puzzleArea
-            const currentX = el.offsetLeft;
-            const currentY = el.offsetTop;
-            
-            // Distance en pixels
-            const dist = Math.sqrt(
-                Math.pow(currentX - targetInAreaX, 2) + 
-                Math.pow(currentY - targetInAreaY, 2)
-            );
-            
-            // Seuil adaptatif (plus tolérant sur mobile et petits écrans)
-            const baseThreshold = Math.min(containerRect.width, containerRect.height) * 0.05;
-            const thresholdPx = Math.max(15, Math.min(35, baseThreshold));
+            const baseW = parseFloat(el.dataset.baseWidth);
+            const baseH = parseFloat(el.dataset.baseHeight);
 
-            if (dist < thresholdPx) {
-                snapPiece(el, targetInAreaX, targetInAreaY);
+            // Ratio de scale actuel
+            const scaleX = containerRect.width / imgPieces.width;
+            const scaleY = containerRect.height / imgPieces.height;
+
+            // Position cible
+            const targetXPx = (col * baseW - tabSize) * scaleX;
+            const targetYPx = (row * baseH - tabSize) * scaleY;
+
+            // Position actuelle
+            const currentXPx = el.offsetLeft;
+            const currentYPx = el.offsetTop;
+
+            // Distance
+            const distPx = Math.sqrt(
+                Math.pow(currentXPx - targetXPx, 2) +
+                Math.pow(currentYPx - targetYPx, 2)
+            );
+
+            // Seuil adaptatif basé sur la taille de la pièce
+            const pieceSize = Math.min(el.offsetWidth, el.offsetHeight);
+            const thresholdPx = Math.max(20, pieceSize * 0.25);
+
+            if (distPx < thresholdPx) {
+                snapPiece(el, targetXPx, targetYPx);
             }
         }
 
         function snapPiece(el, xPx, yPx) {
             el.style.left = `${xPx}px`;
             el.style.top = `${yPx}px`;
-            
-            // Stocker en pourcentages
-            const areaRect = puzzleArea.getBoundingClientRect();
-            el.dataset.leftPercent = (xPx / areaRect.width) * 100;
-            el.dataset.topPercent = (yPx / areaRect.height) * 100;
-            el.dataset.isLocked = 'true';
-            
             el.classList.add('locked');
             lockedCount++;
-            if (lockedCount === totalPieces) onWin();
+
+            if (lockedCount === totalPieces) {
+                onWin();
+            }
         }
-
-        // --- GESTION DU REDIMENSIONNEMENT ---
-        function handleResize() {
-            const areaRect = puzzleArea.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
-            
-            // Mettre à jour la taille du puzzle
-            updatePuzzleSize();
-            
-            // Repositionner les pièces
-            pieces.forEach(piece => {
-                // Recalculer la taille de la pièce
-                const totalW = parseFloat(piece.dataset.pieceWidth);
-                const origImgW = parseFloat(piece.dataset.origImgW);
-                const newContainerRect = container.getBoundingClientRect();
-                const newAreaRect = puzzleArea.getBoundingClientRect();
-                
-                const pieceWidthPx = (totalW / origImgW) * newContainerRect.width;
-                const pieceWidthPercent = (pieceWidthPx / newAreaRect.width) * 100;
-                piece.style.width = `${pieceWidthPercent}%`;
-                
-                if (piece.dataset.isLocked === 'true') {
-                    // Recalculer la position exacte pour les pièces verrouillées
-                    const row = parseInt(piece.dataset.row);
-                    const col = parseInt(piece.dataset.col);
-                    const tabSize = parseFloat(piece.dataset.tabSize);
-                    const origImgH = parseFloat(piece.dataset.origImgH);
-                    
-                    const basePieceW = origImgW / CONFIG.cols;
-                    const basePieceH = origImgH / CONFIG.rows;
-                    
-                    const scaleX = newContainerRect.width / origImgW;
-                    const scaleY = newContainerRect.height / origImgH;
-                    
-                    const targetInContainerX = (col * basePieceW - tabSize) * scaleX;
-                    const targetInContainerY = (row * basePieceH - tabSize) * scaleY;
-                    
-                    const targetInAreaX = (newContainerRect.left - newAreaRect.left) + targetInContainerX;
-                    const targetInAreaY = (newContainerRect.top - newAreaRect.top) + targetInContainerY;
-                    
-                    piece.style.left = `${targetInAreaX}px`;
-                    piece.style.top = `${targetInAreaY}px`;
-                } else {
-                    // Repositionner avec les pourcentages stockés
-                    const leftPercent = parseFloat(piece.dataset.leftPercent) || 0;
-                    const topPercent = parseFloat(piece.dataset.topPercent) || 0;
-                    
-                    piece.style.left = `${(leftPercent / 100) * newAreaRect.width}px`;
-                    piece.style.top = `${(topPercent / 100) * newAreaRect.height}px`;
-                }
-            });
-        }
-
-        // Debounce pour le resize
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(handleResize, 100);
-        });
-
-        // Aussi gérer le changement d'orientation sur mobile
-        window.addEventListener('orientationchange', () => {
-            setTimeout(handleResize, 200);
-        });
 
         function onWin() {
             container.classList.add('puzzle-complete');
             instructionText.style.opacity = '0';
+
             setTimeout(() => {
                 instructionText.style.display = 'none';
                 successMsg.classList.add('visible');
@@ -750,15 +761,99 @@
         }
 
         function triggerConfetti() {
-            var count = 200;
-            var defaults = { origin: { y: 1 }, zIndex: 9999 };
-            function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
+            const count = 200;
+            const defaults = { origin: { y: 1 }, zIndex: 9999 };
+
+            function fire(ratio, opts) {
+                confetti(Object.assign({}, defaults, opts, {
+                    particleCount: Math.floor(count * ratio)
+                }));
+            }
+
             fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
             fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
             fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
             fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
             fire(0.1, { spread: 120, startVelocity: 45, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
         }
+
+        // Gestion du redimensionnement
+        let resizeTimeout;
+        function handleResize() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (!isInitialized) return;
+
+                applyContainerSize();
+                updatePieceSizes();
+                repositionLockedPieces();
+
+                // Repositionner les pièces non lockées si elles sont hors écran
+                repositionOutOfBoundsPieces();
+            }, 100);
+        }
+
+        // Repositionner les pièces qui seraient hors de l'écran
+        function repositionOutOfBoundsPieces() {
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            containerRect = container.getBoundingClientRect();
+
+            pieces.forEach(piece => {
+                if (piece.classList.contains('locked')) return;
+
+                const pieceRect = piece.getBoundingClientRect();
+                const pW = pieceRect.width;
+                const pH = pieceRect.height;
+
+                // Vérifier si la pièce est visible
+                const isVisible = (
+                    pieceRect.right > 0 &&
+                    pieceRect.left < winW &&
+                    pieceRect.bottom > 0 &&
+                    pieceRect.top < winH
+                );
+
+                if (!isVisible) {
+                    // Replacer la pièce dans une zone visible
+                    const zones = getScrambleZones();
+                    const zone = selectZone(zones, pW, pH);
+
+                    if (zone) {
+                        const pageX = zone.minX + Math.random() * Math.max(0, zone.maxX - zone.minX - pW);
+                        const pageY = zone.minY + Math.random() * Math.max(0, zone.maxY - zone.minY - pH);
+
+                        piece.style.left = `${pageX - containerRect.left}px`;
+                        piece.style.top = `${pageY - containerRect.top}px`;
+                    }
+                }
+            });
+        }
+
+        // Event listeners
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', () => {
+            // Attendre que l'orientation soit complètement changée
+            setTimeout(handleResize, 300);
+        });
+
+        // Empêcher le scroll/zoom sur iOS
+        document.addEventListener('touchmove', (e) => {
+            if (e.target.classList.contains('piece') || e.target.closest('#puzzle-container')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Empêcher le double-tap zoom
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
+
     </script>
 </body>
 </html>
