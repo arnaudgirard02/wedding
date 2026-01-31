@@ -9,7 +9,6 @@
         * {
             box-sizing: border-box;
             user-select: none;
-            -webkit-user-select: none;
             -webkit-touch-callout: none;
         }
 
@@ -285,8 +284,16 @@
                 canvas.className = 'piece';
                 if (d.locked) canvas.classList.add('locked');
 
-                // Dessiner
-                ctx.save();
+                // Méthode alternative pour iOS : utiliser destination-in au lieu de clip()
+                // Étape 1: Dessiner l'image complète
+                const srcX = (d.col * pieceW - tabSize) * scaleX;
+                const srcY = (d.row * pieceH - tabSize) * scaleY;
+                const srcW = totalW * scaleX;
+                const srcH = totalH * scaleY;
+                ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, totalW, totalH);
+
+                // Étape 2: Utiliser destination-in pour masquer avec la forme
+                ctx.globalCompositeOperation = 'destination-in';
                 ctx.beginPath();
 
                 let x = tabSize, y = tabSize;
@@ -312,25 +319,34 @@
                 else ctx.lineTo(x, y - pieceH);
 
                 ctx.closePath();
-                ctx.clip();
+                ctx.fill();
 
-                // Source dans l'image originale
-                const srcX = (d.col * pieceW - tabSize) * scaleX;
-                const srcY = (d.row * pieceH - tabSize) * scaleY;
-                const srcW = totalW * scaleX;
-                const srcH = totalH * scaleY;
+                // Étape 3: Remettre le mode normal et dessiner les contours
+                ctx.globalCompositeOperation = 'source-over';
 
-                ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, totalW, totalH);
+                // Re-tracer le path pour les contours
+                ctx.beginPath();
+                x = tabSize; y = tabSize;
+                ctx.moveTo(x, y);
+                if (d.shape[0] !== 0) drawTab(ctx, x, y, pieceW, 0, d.shape[0] * tabSize);
+                else ctx.lineTo(x + pieceW, y);
+                x += pieceW;
+                if (d.shape[1] !== 0) drawTab(ctx, x, y, 0, pieceH, d.shape[1] * tabSize);
+                else ctx.lineTo(x, y + pieceH);
+                y += pieceH;
+                if (d.shape[2] !== 0) drawTab(ctx, x, y, -pieceW, 0, d.shape[2] * tabSize);
+                else ctx.lineTo(x - pieceW, y);
+                x -= pieceW;
+                if (d.shape[3] !== 0) drawTab(ctx, x, y, 0, -pieceH, d.shape[3] * tabSize);
+                else ctx.lineTo(x, y - pieceH);
+                ctx.closePath();
 
-                // Contours
                 ctx.strokeStyle = 'rgba(255,255,255,0.5)';
                 ctx.lineWidth = 2;
                 ctx.stroke();
-                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                ctx.strokeStyle = 'rgba(0,0,0,0.15)';
                 ctx.lineWidth = 1;
                 ctx.stroke();
-
-                ctx.restore();
 
                 // Position
                 if (d.locked) {
