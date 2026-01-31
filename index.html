@@ -98,7 +98,6 @@
             transition: box-shadow 0.3s;
         }
 
-        /* --- MODIFICATION ICI : IMAGE GUIDE PLUS DISCRÈTE --- */
         #puzzle-guide {
             position: absolute;
             top: 0;
@@ -106,8 +105,8 @@
             width: 100%;
             height: 100%;
             background-size: 100% 100%;
-            opacity: 0.08; /* Baissé de 0.15 à 0.08 pour être moins visible */
-            filter: blur(4px); /* Ajout du flou pour complexifier la tâche */
+            opacity: 0.08; 
+            filter: blur(4px); 
             border: 1px dashed #ccc;
             border-radius: 8px;
             z-index: 0;
@@ -132,12 +131,10 @@
             position: absolute;
             cursor: grab;
             z-index: 60;
-            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
             transition: transform 0.1s;
             touch-action: none;
             transform-origin: center center;
-            width: auto; 
-            height: auto;
         }
 
         .piece.dragging {
@@ -209,18 +206,9 @@
             background-color: #c99359;
         }
 
-        .puzzle-complete #final-reveal {
-            opacity: 1; 
-        }
-        
-        .puzzle-complete #puzzle-guide {
-            opacity: 0;
-        }
-        
-        .puzzle-complete #puzzle-frame {
-            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
-            background-color: transparent;
-        }
+        .puzzle-complete #final-reveal { opacity: 1; }
+        .puzzle-complete #puzzle-guide { opacity: 0; }
+        .puzzle-complete #puzzle-frame { box-shadow: 0 15px 40px rgba(0,0,0,0.2); background-color: transparent; }
 
         #loading {
             position: absolute;
@@ -256,14 +244,13 @@
     </div>
 
     <script>
-        // ... (Le reste du JavaScript demeure identique au précédent)
         const CONFIG = {
             piecesSrc: 'guide.jpg',   
             finalSrc: 'puzzle.png',   
             rows: 3,
             cols: 4,
             snapThresholdPercent: 12,
-            tabSizeFactor: 0.24, 
+            tabSizeFactor: 0.20, // Légèrement réduit pour des pièces plus élégantes
             maxSafeWidth: 1600 
         };
 
@@ -274,9 +261,9 @@
         const successMsg = document.getElementById('success-message');
         const loadingMsg = document.getElementById('loading');
 
+        // Chargement du fond
         const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
         const bgImgElement = document.getElementById('bg-img');
-        
         function tryLoadBackground(index) {
             if (index >= possibleBackgrounds.length) return;
             const currentName = possibleBackgrounds[index];
@@ -311,23 +298,18 @@
         imgPieces.src = CONFIG.piecesSrc;
         
         imgPieces.onload = () => {
-            try {
-                loadingMsg.style.display = 'none';
-                let workingWidth = imgPieces.naturalWidth;
-                let workingHeight = imgPieces.naturalHeight;
-                if (workingWidth > CONFIG.maxSafeWidth) {
-                    const scale = CONFIG.maxSafeWidth / workingWidth;
-                    workingWidth = CONFIG.maxSafeWidth;
-                    workingHeight = Math.floor(imgPieces.naturalHeight * scale);
-                }
-                const ratio = workingWidth / workingHeight;
-                container.style.aspectRatio = `${ratio}`;
-                guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
-                finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
-                initPuzzle(workingWidth, workingHeight);
-            } catch (e) {
-                alert("Erreur : " + e.message);
+            loadingMsg.style.display = 'none';
+            let workingWidth = imgPieces.naturalWidth;
+            let workingHeight = imgPieces.naturalHeight;
+            if (workingWidth > CONFIG.maxSafeWidth) {
+                const scale = CONFIG.maxSafeWidth / workingWidth;
+                workingWidth = CONFIG.maxSafeWidth;
+                workingHeight = Math.floor(imgPieces.naturalHeight * scale);
             }
+            container.style.aspectRatio = `${workingWidth / workingHeight}`;
+            guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
+            finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
+            initPuzzle(workingWidth, workingHeight);
         };
 
         function initPuzzle(totalW, totalH) {
@@ -337,11 +319,32 @@
             const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
             for (let r = 0; r < CONFIG.rows; r++) {
                 for (let c = 0; c < CONFIG.cols; c++) {
-                    const shapeIndex = r * CONFIG.cols + c;
-                    createCanvasPiece(r, c, pieceW, pieceH, tabSize, generatedShapes[shapeIndex], totalW, totalH);
+                    createCanvasPiece(r, c, pieceW, pieceH, tabSize, generatedShapes[r * CONFIG.cols + c], totalW, totalH);
                 }
             }
             scramblePieces();
+        }
+
+        function drawCurve(ctx, x1, y1, x2, y2, size) {
+            const cx = (x1 + x2) / 2;
+            const cy = (y1 + y2) / 2;
+            const dist = Math.hypot(x2 - x1, y2 - y1);
+            const ux = (x2 - x1) / dist;
+            const uy = (y2 - y1) / dist;
+            const nx = -uy;
+            const ny = ux;
+            const neckW = 0.15; 
+            const xBase1 = x1 + ux * dist * (0.5 - neckW);
+            const yBase1 = y1 + uy * dist * (0.5 - neckW);
+            const xBase2 = x1 + ux * dist * (0.5 + neckW);
+            const yBase2 = y1 + uy * dist * (0.5 + neckW);
+            const xTip = cx + nx * size;
+            const yTip = cy + ny * size;
+
+            ctx.lineTo(xBase1, yBase1);
+            ctx.bezierCurveTo(xBase1 + nx * size * 0.2, yBase1 + ny * size * 0.2, xTip - ux * dist * 0.1, yTip - uy * dist * 0.1, xTip, yTip);
+            ctx.bezierCurveTo(xTip + ux * dist * 0.1, yTip + uy * dist * 0.1, xBase2 + nx * size * 0.2, yBase2 + ny * size * 0.2, xBase2, yBase2);
+            ctx.lineTo(x2, y2);
         }
 
         function createCanvasPiece(row, col, w, h, tabSize, shape, totalImgW, totalImgH) {
@@ -351,97 +354,66 @@
             const canvasH = Math.floor(h + tabSize * 2);
             canvas.width = canvasW; canvas.height = canvasH;
             canvas.classList.add('piece');
-            const startX = tabSize; const startY = tabSize;
+
             ctx.beginPath();
-            ctx.moveTo(startX, startY);
-            if (shape[0] !== 0) drawCurve(ctx, startX, startY, startX + w, startY, shape[0] * tabSize);
-            else ctx.lineTo(startX + w, startY);
-            if (shape[1] !== 0) drawCurve(ctx, startX + w, startY, startX + w, startY + h, shape[1] * tabSize);
-            else ctx.lineTo(startX + w, startY + h);
-            if (shape[2] !== 0) drawCurve(ctx, startX + w, startY + h, startX, startY + h, shape[2] * tabSize);
-            else ctx.lineTo(startX, startY + h);
-            if (shape[3] !== 0) drawCurve(ctx, startX, startY + h, startX, startY, shape[3] * tabSize);
-            else ctx.lineTo(startX, startY);
+            ctx.moveTo(tabSize, tabSize);
+            if (shape[0] !== 0) drawCurve(ctx, tabSize, tabSize, tabSize + w, tabSize, shape[0] * tabSize);
+            else ctx.lineTo(tabSize + w, tabSize);
+            if (shape[1] !== 0) drawCurve(ctx, tabSize + w, tabSize, tabSize + w, tabSize + h, shape[1] * tabSize);
+            else ctx.lineTo(tabSize + w, tabSize + h);
+            if (shape[2] !== 0) drawCurve(ctx, tabSize + w, tabSize + h, tabSize, tabSize + h, shape[2] * tabSize);
+            else ctx.lineTo(tabSize, tabSize + h);
+            if (shape[3] !== 0) drawCurve(ctx, tabSize, tabSize + h, tabSize, tabSize, shape[3] * tabSize);
+            else ctx.lineTo(tabSize, tabSize);
             ctx.closePath();
+
             ctx.save(); ctx.clip();
             const scaleX = imgPieces.naturalWidth / totalImgW;
             const scaleY = imgPieces.naturalHeight / totalImgH;
-            let sx = ((col * w) - tabSize) * scaleX;
-            let sy = ((row * h) - tabSize) * scaleY;
-            let sWidth = canvasW * scaleX;
-            let sHeight = canvasH * scaleY;
-            let dx = 0; let dy = 0;
-            if (sx < 0) { const offset = -sx; sWidth -= offset; sx = 0; dx += (offset / scaleX); }
-            if (sy < 0) { const offset = -sy; sHeight -= offset; sy = 0; dy += (offset / scaleY); }
-            if (sWidth > 0 && sHeight > 0) ctx.drawImage(imgPieces, sx, sy, sWidth, sHeight, dx, dy, canvasW, canvasH);
+            ctx.drawImage(imgPieces, (col * w - tabSize) * scaleX, (row * h - tabSize) * scaleY, canvasW * scaleX, canvasH * scaleY, 0, 0, canvasW, canvasH);
             ctx.restore();
-            ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 2; ctx.stroke();
-            ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
+
+            // Bordures ultra-fines
+            ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.lineWidth = 1; ctx.stroke();
+            ctx.strokeStyle = "rgba(0,0,0,0.05)"; ctx.lineWidth = 0.5; ctx.stroke();
+
             canvas.style.width = `${(canvasW / totalImgW) * 100}%`;
-            canvas.style.height = 'auto'; 
             canvas.dataset.targetX = ((col * w) - tabSize) * (100 / totalImgW);
             canvas.dataset.targetY = ((row * h) - tabSize) * (100 / totalImgH);
+
             addDragListeners(canvas);
             container.appendChild(canvas);
             pieces.push(canvas);
         }
 
-        function drawCurve(ctx, x1, y1, x2, y2, size) {
-            const cx = (x1 + x2) / 2; const cy = (y1 + y2) / 2;
-            const dist = Math.hypot(x2 - x1, y2 - y1);
-            const ux = (x2 - x1) / dist; const uy = (y2 - y1) / dist;
-            const nx = -uy; const ny = ux;
-            const baseW = 0.20; 
-            const xBase1 = x1 + ux * dist * (0.5 - baseW/2);
-            const yBase1 = y1 + uy * dist * (0.5 - baseW/2);
-            const xBase2 = x1 + ux * dist * (0.5 + baseW/2);
-            const yBase2 = y1 + uy * dist * (0.5 + baseW/2);
-            const xTip = cx + nx * size; const yTip = cy + ny * size;
-            ctx.lineTo(xBase1, yBase1);
-            ctx.bezierCurveTo(xBase1 + ux * dist * 0.05 + nx * size * 0.35, yBase1 + uy * dist * 0.05 + ny * size * 0.35, xTip - ux * dist * 0.15, yTip - uy * dist * 0.15, xTip, yTip);
-            ctx.bezierCurveTo(xTip + ux * dist * 0.15, yTip + uy * dist * 0.15, xBase2 - ux * dist * 0.05 + nx * size * 0.35, yBase2 - uy * dist * 0.05 + ny * size * 0.35, xBase2, yBase2);
-            ctx.lineTo(x2, y2);
-        }
-
         function scramblePieces() {
             const containerRect = container.getBoundingClientRect();
-            const winW = window.innerWidth; const winH = window.innerHeight;
-            const isMobile = winW < 768; 
             const headerHeight = document.getElementById('game-ui').offsetHeight + 20;
             pieces.forEach(piece => {
                 if(piece.classList.contains('locked')) return;
                 const rect = piece.getBoundingClientRect();
-                const pW = rect.width; const pH = rect.height;
-                const safeMargin = 10;
-                let minX, maxX, minY, maxY;
-                if (isMobile) { minX = safeMargin; maxX = winW - pW - safeMargin; minY = headerHeight; maxY = winH - pH - 80; }
-                else {
-                    const side = Math.random() > 0.5 ? 'left' : 'right';
-                    if (side === 'left') { minX = safeMargin; maxX = containerRect.left - pW - safeMargin; }
-                    else { minX = containerRect.right + safeMargin; maxX = winW - pW - safeMargin; }
-                    minY = headerHeight; maxY = winH - pH - safeMargin;
-                }
+                const minX = 10, maxX = window.innerWidth - rect.width - 10;
+                const minY = headerHeight, maxY = window.innerHeight - rect.height - 80;
                 piece.style.left = `${(minX + Math.random() * (maxX - minX)) - containerRect.left}px`;
                 piece.style.top = `${(minY + Math.random() * (maxY - minY)) - containerRect.top}px`;
             });
         }
 
         function addDragListeners(el) {
-            let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
+            let startX, startY, initL, initT, isDragging = false;
             const onStart = (e) => {
-                if (el.classList.contains('locked')) return; 
-                if (e.cancelable && e.type === 'touchstart') e.preventDefault();
+                if (el.classList.contains('locked')) return;
                 isDragging = true; el.classList.add('dragging'); container.appendChild(el); 
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                startX = clientX; startY = clientY; initialLeft = el.offsetLeft; initialTop = el.offsetTop;
+                startX = clientX; startY = clientY; initL = el.offsetLeft; initT = el.offsetTop;
             };
             const onMove = (e) => {
                 if (!isDragging) return;
                 const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                el.style.left = `${initialLeft + (clientX - startX)}px`;
-                el.style.top = `${initialTop + (clientY - startY)}px`;
+                el.style.left = `${initL + (clientX - startX)}px`;
+                el.style.top = `${initT + (clientY - startY)}px`;
             };
             const onEnd = () => { if (isDragging) { isDragging = false; el.classList.remove('dragging'); checkSnap(el); } };
             el.addEventListener('mousedown', onStart); el.addEventListener('touchstart', onStart, {passive:false});
@@ -452,8 +424,7 @@
         function checkSnap(el) {
             const currentX = (el.offsetLeft / container.offsetWidth) * 100;
             const currentY = (el.offsetTop / container.offsetHeight) * 100;
-            const targetX = parseFloat(el.dataset.targetX);
-            const targetY = parseFloat(el.dataset.targetY);
+            const targetX = parseFloat(el.dataset.targetX), targetY = parseFloat(el.dataset.targetY);
             if (Math.hypot(currentX - targetX, currentY - targetY) < (window.innerWidth < 768 ? 8 : 4)) {
                 el.style.left = `${targetX}%`; el.style.top = `${targetY}%`; el.classList.add('locked');
                 lockedCount++; if (navigator.vibrate) navigator.vibrate(10);
@@ -463,17 +434,14 @@
 
         function onWin() {
             container.classList.add('puzzle-complete');
-            instructionText.style.opacity = '0';
-            triggerConfetti();
+            instructionText.style.opacity = '0'; triggerConfetti();
             setTimeout(() => { instructionText.style.display = 'none'; successMsg.classList.add('visible'); }, 500);
         }
 
         function triggerConfetti() {
-            var count = 200; var defaults = { origin: { y: 0.85 }, zIndex: 9999 };
-            function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
-            fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
+            var count = 200;
+            function fire(ratio, opts) { confetti(Object.assign({}, { origin: { y: 0.85 }, zIndex: 9999 }, opts, { particleCount: Math.floor(count * ratio) })); }
+            fire(0.25, { spread: 26, startVelocity: 55 }); fire(0.2, { spread: 60 }); fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
         }
     </script>
 </body>
