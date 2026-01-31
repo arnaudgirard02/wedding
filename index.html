@@ -176,9 +176,36 @@
         }
 
         #success-message p {
-            margin: 0;
+            margin: 0 0 15px 0;
             color: #7f8c8d;
             font-size: 0.95rem;
+        }
+
+        .btn-form {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #dfa668;
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            pointer-events: auto;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 10px rgba(223, 166, 104, 0.3);
+        }
+
+        .btn-form:hover {
+            background-color: #c99359;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(223, 166, 104, 0.4);
+        }
+
+        .btn-form:active {
+            transform: scale(0.95);
+            background-color: #b8844f;
         }
 
         .puzzle-complete #final-reveal {
@@ -192,11 +219,6 @@
         .puzzle-complete#puzzle-container {
             background-color: transparent;
             box-shadow: 0 15px 40px rgba(0,0,0,0.2);
-        }
-
-        .btn-form:active {
-            transform: scale(0.95);
-            background-colour: #c99359;
         }
 
     </style>
