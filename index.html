@@ -2,73 +2,61 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Save the Date - Puzzle</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        /* --- RESET & BASE --- */
         * {
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* Empêche le scroll sur mobile pendant le jeu */
+            -webkit-touch-callout: none;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background-color: #ffffff;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
         body {
-            margin: 0;
-            padding: 0;
-            background-color: #ffffff; 
-            color: #333;
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start; /* Changé pour mieux gérer le haut sur mobile */
-            height: 100vh;
-            overflow: hidden;
-            position: relative;
+            touch-action: none;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
 
-        /* --- ARRIÈRE-PLAN --- */
         #background-container {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            height: auto; 
-            z-index: 0;   
+            z-index: 0;
             pointer-events: none;
-            display: flex;
-            align-items: flex-end; 
-            justify-content: center;
         }
 
         #bg-img {
             display: block;
             width: 100%;
-            height: auto; 
-            opacity: 1; 
+            height: auto;
         }
 
-        /* --- UI ELEMENTS --- */
         #game-ui {
             text-align: center;
-            margin-top: 40px; /* Espace fixe depuis le haut */
-            margin-bottom: 20px;
-            z-index: 50; 
-            pointer-events: none;
-            width: 90%;
-            max-width: 600px;
-            position: relative;
+            padding: 15px 10px;
+            z-index: 50;
         }
 
         h1 {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 400;
             margin: 0;
             opacity: 0.8;
-            transition: opacity 0.5s ease;
-            text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            color: #333;
             line-height: 1.4;
         }
 
@@ -77,133 +65,147 @@
             color: #dfa668;
         }
 
-        /* --- PUZZLE CONTAINER --- */
         #puzzle-container {
             position: relative;
-            z-index: 50; 
-            width: 90vw; /* Prend presque toute la largeur sur mobile */
-            max-width: 600px;
-            aspect-ratio: 4/3; 
-            background-color: #ffffff; 
+            z-index: 50;
+            background-color: #ffffff;
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: background-color 0.5s;
-            margin-bottom: 20px; /* Espace en bas */
+            width: 320px;
+            height: 240px;
         }
 
-        /* Le guide (image de fond atténuée - SANS DATE) */
+        @media (min-width: 500px) {
+            #puzzle-container {
+                width: 480px;
+                height: 360px;
+            }
+        }
+
+        @media (min-width: 700px) {
+            #puzzle-container {
+                width: 560px;
+                height: 420px;
+            }
+        }
+
         #puzzle-guide {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-size: 100% 100%;
-            opacity: 0.25; /* Un peu plus clair pour mieux voir les pièces par dessus */
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: url('guide.jpg') no-repeat center/100% 100%;
+            opacity: 0.25;
             border: 2px dashed #ccc;
             border-radius: 8px;
             z-index: 0;
-            filter: blur(5px); /* Effet de flou pour augmenter la difficulté */
+            filter: blur(4px);
         }
 
-        /* L'image de RÉVÉLATION (AVEC DATE) */
         #final-reveal {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-size: 100% 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: url('puzzle.png') no-repeat center/100% 100%;
             opacity: 0;
-            z-index: 150; 
+            z-index: 150;
             transition: opacity 1.5s ease-in-out;
             pointer-events: none;
             border-radius: 8px;
         }
 
-        /* --- PIECES --- */
+        /* Pièces en DIV avec background-image et clip-path */
         .piece {
             position: absolute;
             cursor: grab;
             z-index: 60;
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
-            transition: transform 0.1s;
             touch-action: none;
+            background-image: url('guide.jpg');
+            background-repeat: no-repeat;
+            /* Le clip-path sera défini inline */
         }
 
         .piece.dragging {
-            z-index: 999; /* Très haut z-index pour ne jamais passer derrière */
+            z-index: 999;
             cursor: grabbing;
-            transform: scale(1.1); /* Plus gros sur mobile pour voir sous le doigt */
-            filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));
+            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.35));
         }
 
         .piece.locked {
-            z-index: 40;
+            z-index: 100;
             cursor: default;
-            filter: none;
-            pointer-events: none; /* Une fois lockée, on ne la touche plus */
-            transition: all 0.3s ease;
+            pointer-events: none;
         }
 
-        /* --- SUCCESS STATE --- */
         #success-message {
-            position: fixed; /* Fixe pour être sûr d'être visible */
-            bottom: -100px;
+            position: fixed;
+            bottom: -150px;
             left: 50%;
             transform: translateX(-50%);
             background: white;
-            padding: 20px 30px;
-            border-radius: 50px;
+            padding: 20px 25px;
+            border-radius: 30px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             text-align: center;
             opacity: 0;
             transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            width: 85%;
-            max-width: 400px;
+            width: calc(100% - 40px);
+            max-width: 380px;
             z-index: 1000;
         }
 
         #success-message.visible {
-            bottom: 30px;
+            bottom: max(25px, env(safe-area-inset-bottom));
             opacity: 1;
         }
 
         #success-message h2 {
             margin: 0 0 5px 0;
             color: #2c3e50;
-            font-size: 1.4rem;
+            font-size: 1.3rem;
         }
 
         #success-message p {
-            margin: 0;
+            margin: 0 0 15px 0;
             color: #7f8c8d;
             font-size: 0.95rem;
         }
 
-        .puzzle-complete #final-reveal {
-            opacity: 1; 
-        }
-        
-        .puzzle-complete #puzzle-guide {
-            opacity: 0;
-        }
-        
-        .puzzle-complete#puzzle-container {
-            background-color: transparent;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        .btn-form {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #dfa668;
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(223, 166, 104, 0.3);
         }
 
+        .btn-form:hover {
+            background-color: #c98f52;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(223, 166, 104, 0.4);
+        }
+
+        .btn-form:active {
+            transform: translateY(0);
+        }
+
+        .puzzle-complete #final-reveal { opacity: 1; }
+        .puzzle-complete #puzzle-guide { opacity: 0; }
+        .puzzle-complete .piece { opacity: 0; }
+        .puzzle-complete { box-shadow: 0 15px 40px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
-
     <div id="background-container">
-        <img id="bg-img" src="" alt="">
+        <img id="bg-img" src="bg.jpg" alt="">
     </div>
 
     <div id="game-ui">
-        <h1 id="instruction-text">Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
+        <h1>Assemblez les pièces pour découvrir<br><span class="instruction-highlight">la date du mariage</span></h1>
     </div>
 
     <div id="puzzle-container">
@@ -213,287 +215,444 @@
 
     <div id="success-message">
         <h2>Félicitations !</h2>
-        <p> Vous avez maintenant la date du mariage ! Hâte de vous y voir 🥰</p>
+        <p>Le mariage aura lieu au Tir au Vol, à Arcachon ⚓️</p>
+        <a href="https://tally.so/r/Gxl9qj" class="btn-form">Continuer</a>
     </div>
 
     <script>
         const CONFIG = {
-            piecesSrc: 'guide.jpg',   
-            finalSrc: 'puzzle.png',   
             rows: 3,
             cols: 4,
-            snapThreshold: 0.15,
-            tabSizePercent: 20
+            tabPercent: 0.18
         };
 
         const container = document.getElementById('puzzle-container');
-        const guide = document.getElementById('puzzle-guide');
-        const finalReveal = document.getElementById('final-reveal');
-        const instructionText = document.getElementById('instruction-text');
         const successMsg = document.getElementById('success-message');
 
-        const possibleBackgrounds = ['bg.jpg', 'bg.jpeg', 'bg.png', 'background.jpg'];
-        const bgImgElement = document.getElementById('bg-img');
-        
-        function tryLoadBackground(index) {
-            if (index >= possibleBackgrounds.length) return;
-            const currentName = possibleBackgrounds[index];
-            const tester = new Image();
-            tester.onload = () => { bgImgElement.src = currentName; };
-            tester.onerror = () => { tryLoadBackground(index + 1); };
-            tester.src = currentName;
-        }
-        tryLoadBackground(0);
-
         let pieces = [];
+        let piecesData = [];
         let lockedCount = 0;
         const totalPieces = CONFIG.rows * CONFIG.cols;
 
-        function generatePerfectShapes(rows, cols) {
-            const shapes = [];
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    let top = 0, right = 0, bottom = 0, left = 0;
-                    if (r > 0) top = -shapes[(r - 1) * cols + c][2];
-                    if (c < cols - 1) right = Math.random() > 0.5 ? 1 : -1;
-                    if (r < rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
-                    if (c > 0) left = -shapes[r * cols + (c - 1)][1];
-                    shapes.push([top, right, bottom, left]);
-                }
-            }
-            return shapes;
-        }
+        // Formes des tabs (générées une fois)
+        // 0 = bord plat, 1 = tab sortant, -1 = tab rentrant
+        // [top, right, bottom, left]
+        const shapes = generateShapes();
 
-        const imgPieces = new Image();
-        imgPieces.src = CONFIG.piecesSrc;
-        
-        imgPieces.onload = () => {
-            const ratio = imgPieces.width / imgPieces.height;
-            container.style.aspectRatio = `${ratio}`;
-            guide.style.backgroundImage = `url('${CONFIG.piecesSrc}')`;
-            finalReveal.style.backgroundImage = `url('${CONFIG.finalSrc}')`;
-            initPuzzle();
-        };
-
-        imgPieces.onerror = () => {
-            alert("⚠️ Erreur : L'image 'guide.jpg' n'a pas été trouvée.");
-        };
-
-        function initPuzzle() {
-            const basePieceW = imgPieces.width / CONFIG.cols;
-            const basePieceH = imgPieces.height / CONFIG.rows;
-            const tabSize = Math.min(basePieceW, basePieceH) * (CONFIG.tabSizePercent / 100);
-
-            const generatedShapes = generatePerfectShapes(CONFIG.rows, CONFIG.cols);
-
+        function generateShapes() {
+            const s = [];
             for (let r = 0; r < CONFIG.rows; r++) {
                 for (let c = 0; c < CONFIG.cols; c++) {
-                    const shapeIndex = r * CONFIG.cols + c;
-                    createCanvasPiece(r, c, basePieceW, basePieceH, tabSize, generatedShapes[shapeIndex]);
+                    let top = 0, right = 0, bottom = 0, left = 0;
+                    if (r > 0) top = -s[(r-1) * CONFIG.cols + c][2];
+                    if (c < CONFIG.cols - 1) right = Math.random() > 0.5 ? 1 : -1;
+                    if (r < CONFIG.rows - 1) bottom = Math.random() > 0.5 ? 1 : -1;
+                    if (c > 0) left = -s[r * CONFIG.cols + (c-1)][1];
+                    s.push([top, right, bottom, left]);
                 }
             }
-            scramblePieces();
+            return s;
         }
 
-        function createCanvasPiece(row, col, w, h, tabSize, shape) {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const totalW = w + tabSize * 2;
-            const totalH = h + tabSize * 2;
-            
-            canvas.width = totalW;
-            canvas.height = totalH;
-            canvas.classList.add('piece');
-
-            ctx.save();
-            ctx.beginPath();
-            const offsetX = tabSize;
-            const offsetY = tabSize;
-            let x = offsetX, y = offsetY;
-            ctx.moveTo(x, y);
-
-            if (shape[0] !== 0) drawTab(ctx, x, y, w, 0, shape[0] * tabSize); else ctx.lineTo(x + w, y); 
-            x += w;
-            if (shape[1] !== 0) drawTab(ctx, x, y, 0, h, shape[1] * tabSize); else ctx.lineTo(x, y + h); 
-            y += h;
-            if (shape[2] !== 0) drawTab(ctx, x, y, -w, 0, shape[2] * tabSize); else ctx.lineTo(x - w, y); 
-            x -= w;
-            if (shape[3] !== 0) drawTab(ctx, x, y, 0, -h, shape[3] * tabSize); else ctx.lineTo(x, y - h); 
-
-            ctx.closePath();
-            ctx.clip();
-            ctx.drawImage(imgPieces, col * w - offsetX, row * h - offsetY, totalW, totalH, 0, 0, totalW, totalH);
-            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.stroke();
-            ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1; ctx.stroke();
-            ctx.restore();
-
-            canvas.style.width = `${(totalW / (imgPieces.width)) * 100}%`;
-            canvas.style.height = 'auto';
-            const pctPerPixelX = 100 / imgPieces.width;
-            const pctPerPixelY = 100 / imgPieces.height;
-            canvas.dataset.targetX = (col * w - tabSize) * pctPerPixelX;
-            canvas.dataset.targetY = (row * h - tabSize) * pctPerPixelY;
-
-            addDragListeners(canvas);
-            container.appendChild(canvas);
-            pieces.push(canvas);
+        // Initialiser les données des pièces
+        for (let r = 0; r < CONFIG.rows; r++) {
+            for (let c = 0; c < CONFIG.cols; c++) {
+                piecesData.push({
+                    row: r,
+                    col: c,
+                    shape: shapes[r * CONFIG.cols + c],
+                    locked: false,
+                    x: 0,
+                    y: 0
+                });
+            }
         }
 
-        function drawTab(ctx, x, y, dx, dy, size) {
-            const l = Math.sqrt(dx*dx + dy*dy), neck = l * 0.35;
-            const ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
-            const x1 = x + ux * (l - neck)/2, y1 = y + uy * (l - neck)/2;
-            const x2 = x + ux * (l + neck)/2, y2 = y + uy * (l + neck)/2;
-            ctx.lineTo(x1, y1);
-            const h = Math.abs(size), sign = size > 0 ? 1 : -1;
-            const cx1 = x1 + nx * sign * h * 0.2, cy1 = y1 + ny * sign * h * 0.2;
-            const tx1 = x + ux * (l/2 - neck*0.5) + nx * sign * h, ty1 = y + uy * (l/2 - neck*0.5) + ny * sign * h;
-            const tx2 = x + ux * (l/2 + neck*0.5) + nx * sign * h, ty2 = y + uy * (l/2 + neck*0.5) + ny * sign * h;
-            const cx2 = x2 + nx * sign * h * 0.2, cy2 = y2 + ny * sign * h * 0.2;
-            ctx.bezierCurveTo(cx1, cy1, tx1, ty1, x + ux * l/2 + nx * sign * h, y + uy * l/2 + ny * sign * h);
-            ctx.bezierCurveTo(tx2, ty2, cx2, cy2, x2, y2);
-            ctx.lineTo(x + dx, y + dy);
+        // Créer les pièces
+        createPieces();
+        scramble();
+
+        function createPieces() {
+            pieces.forEach(p => p.remove());
+            pieces = [];
+
+            const cw = container.offsetWidth;
+            const ch = container.offsetHeight;
+            const pieceW = cw / CONFIG.cols;
+            const pieceH = ch / CONFIG.rows;
+            const tabSize = Math.min(pieceW, pieceH) * CONFIG.tabPercent;
+
+            for (let i = 0; i < piecesData.length; i++) {
+                const d = piecesData[i];
+                const piece = document.createElement('div');
+                piece.className = 'piece';
+                if (d.locked) piece.classList.add('locked');
+
+                // Taille de la pièce (avec espace pour les tabs)
+                const totalW = pieceW + tabSize * 2;
+                const totalH = pieceH + tabSize * 2;
+
+                piece.style.width = totalW + 'px';
+                piece.style.height = totalH + 'px';
+
+                // Position du background pour montrer la bonne partie de l'image
+                const bgX = -(d.col * pieceW - tabSize);
+                const bgY = -(d.row * pieceH - tabSize);
+                piece.style.backgroundPosition = `${bgX}px ${bgY}px`;
+                piece.style.backgroundSize = `${cw}px ${ch}px`;
+
+                // Générer le clip-path SVG pour la forme de la pièce
+                const clipPath = generateClipPath(d.shape, pieceW, pieceH, tabSize, totalW, totalH);
+                piece.style.clipPath = clipPath;
+                piece.style.webkitClipPath = clipPath;
+
+                // Position
+                if (d.locked) {
+                    piece.style.left = (d.col * pieceW - tabSize) + 'px';
+                    piece.style.top = (d.row * pieceH - tabSize) + 'px';
+                } else {
+                    piece.style.left = d.x + 'px';
+                    piece.style.top = d.y + 'px';
+                }
+
+                piece.dataset.index = i;
+                addDrag(piece, i, pieceW, pieceH, tabSize);
+                container.appendChild(piece);
+                pieces.push(piece);
+            }
         }
 
-        // --- NOUVELLE FONCTION DE MÉLANGE INTELLIGENTE ---
-        function scramblePieces() {
-            const containerRect = container.getBoundingClientRect();
+        function generateClipPath(shape, pieceW, pieceH, tabSize, totalW, totalH) {
+            const toPctX = (x) => (x / totalW * 100).toFixed(2);
+            const toPctY = (y) => (y / totalH * 100).toFixed(2);
+
+            // Fonction pour générer des points sur une courbe de Bézier cubique
+            function bezierPoints(p0, p1, p2, p3, numPoints) {
+                const points = [];
+                for (let i = 0; i <= numPoints; i++) {
+                    const t = i / numPoints;
+                    const t2 = t * t;
+                    const t3 = t2 * t;
+                    const mt = 1 - t;
+                    const mt2 = mt * mt;
+                    const mt3 = mt2 * mt;
+
+                    const x = mt3 * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x;
+                    const y = mt3 * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y;
+                    points.push({ x, y });
+                }
+                return points;
+            }
+
+            const pathPoints = [];
+            let x = tabSize;
+            let y = tabSize;
+
+            // --- TOP EDGE ---
+            if (shape[0] === 0) {
+                pathPoints.push(`${toPctX(x)}% ${toPctY(y)}%`);
+                pathPoints.push(`${toPctX(x + pieceW)}% ${toPctY(y)}%`);
+            } else {
+                const dir = shape[0];
+                const tabH = tabSize;
+                const neckW = pieceW * 0.28;
+                const bulgeW = pieceW * 0.34;
+                const centerX = x + pieceW / 2;
+                const neckStart = centerX - neckW / 2;
+                const neckEnd = centerX + neckW / 2;
+                const tabTip = dir > 0 ? y - tabH : y + tabH;
+
+                pathPoints.push(`${toPctX(x)}% ${toPctY(y)}%`);
+                pathPoints.push(`${toPctX(neckStart)}% ${toPctY(y)}%`);
+
+                // Courbe gauche du tab (neck vers bulge)
+                const curve1 = bezierPoints(
+                    { x: neckStart, y: y },
+                    { x: neckStart, y: tabTip + (y - tabTip) * 0.4 },
+                    { x: centerX - bulgeW / 2, y: tabTip },
+                    { x: centerX, y: tabTip },
+                    8
+                );
+                curve1.forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                // Courbe droite du tab (bulge vers neck)
+                const curve2 = bezierPoints(
+                    { x: centerX, y: tabTip },
+                    { x: centerX + bulgeW / 2, y: tabTip },
+                    { x: neckEnd, y: tabTip + (y - tabTip) * 0.4 },
+                    { x: neckEnd, y: y },
+                    8
+                );
+                curve2.slice(1).forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                pathPoints.push(`${toPctX(x + pieceW)}% ${toPctY(y)}%`);
+            }
+            x += pieceW;
+
+            // --- RIGHT EDGE ---
+            if (shape[1] === 0) {
+                pathPoints.push(`${toPctX(x)}% ${toPctY(y + pieceH)}%`);
+            } else {
+                const dir = shape[1];
+                const tabW = tabSize;
+                const neckH = pieceH * 0.28;
+                const bulgeH = pieceH * 0.34;
+                const centerY = y + pieceH / 2;
+                const neckStart = centerY - neckH / 2;
+                const neckEnd = centerY + neckH / 2;
+                const tabTip = dir > 0 ? x + tabW : x - tabW;
+
+                pathPoints.push(`${toPctX(x)}% ${toPctY(neckStart)}%`);
+
+                const curve1 = bezierPoints(
+                    { x: x, y: neckStart },
+                    { x: tabTip - (tabTip - x) * 0.4, y: neckStart },
+                    { x: tabTip, y: centerY - bulgeH / 2 },
+                    { x: tabTip, y: centerY },
+                    8
+                );
+                curve1.forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                const curve2 = bezierPoints(
+                    { x: tabTip, y: centerY },
+                    { x: tabTip, y: centerY + bulgeH / 2 },
+                    { x: tabTip - (tabTip - x) * 0.4, y: neckEnd },
+                    { x: x, y: neckEnd },
+                    8
+                );
+                curve2.slice(1).forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                pathPoints.push(`${toPctX(x)}% ${toPctY(y + pieceH)}%`);
+            }
+            y += pieceH;
+
+            // --- BOTTOM EDGE ---
+            if (shape[2] === 0) {
+                pathPoints.push(`${toPctX(x - pieceW)}% ${toPctY(y)}%`);
+            } else {
+                const dir = shape[2];
+                const tabH = tabSize;
+                const neckW = pieceW * 0.28;
+                const bulgeW = pieceW * 0.34;
+                const centerX = x - pieceW / 2;
+                const neckEnd = centerX + neckW / 2;
+                const neckStart = centerX - neckW / 2;
+                const tabTip = dir > 0 ? y + tabH : y - tabH;
+
+                pathPoints.push(`${toPctX(neckEnd)}% ${toPctY(y)}%`);
+
+                const curve1 = bezierPoints(
+                    { x: neckEnd, y: y },
+                    { x: neckEnd, y: tabTip - (tabTip - y) * 0.4 },
+                    { x: centerX + bulgeW / 2, y: tabTip },
+                    { x: centerX, y: tabTip },
+                    8
+                );
+                curve1.forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                const curve2 = bezierPoints(
+                    { x: centerX, y: tabTip },
+                    { x: centerX - bulgeW / 2, y: tabTip },
+                    { x: neckStart, y: tabTip - (tabTip - y) * 0.4 },
+                    { x: neckStart, y: y },
+                    8
+                );
+                curve2.slice(1).forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                pathPoints.push(`${toPctX(x - pieceW)}% ${toPctY(y)}%`);
+            }
+            x -= pieceW;
+
+            // --- LEFT EDGE ---
+            if (shape[3] === 0) {
+                // Fermeture implicite
+            } else {
+                const dir = shape[3];
+                const tabW = tabSize;
+                const neckH = pieceH * 0.28;
+                const bulgeH = pieceH * 0.34;
+                const centerY = y - pieceH / 2;
+                const neckEnd = centerY + neckH / 2;
+                const neckStart = centerY - neckH / 2;
+                const tabTip = dir > 0 ? x - tabW : x + tabW;
+
+                pathPoints.push(`${toPctX(x)}% ${toPctY(neckEnd)}%`);
+
+                const curve1 = bezierPoints(
+                    { x: x, y: neckEnd },
+                    { x: tabTip + (x - tabTip) * 0.4, y: neckEnd },
+                    { x: tabTip, y: centerY + bulgeH / 2 },
+                    { x: tabTip, y: centerY },
+                    8
+                );
+                curve1.forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+
+                const curve2 = bezierPoints(
+                    { x: tabTip, y: centerY },
+                    { x: tabTip, y: centerY - bulgeH / 2 },
+                    { x: tabTip + (x - tabTip) * 0.4, y: neckStart },
+                    { x: x, y: neckStart },
+                    8
+                );
+                curve2.slice(1).forEach(p => pathPoints.push(`${toPctX(p.x)}% ${toPctY(p.y)}%`));
+            }
+
+            return `polygon(${pathPoints.join(', ')})`;
+        }
+
+        function scramble() {
+            const rect = container.getBoundingClientRect();
             const winW = window.innerWidth;
             const winH = window.innerHeight;
-            // On récupère la hauteur du titre pour ne pas mettre de pièces dessus
-            const headerHeight = document.getElementById('game-ui').offsetHeight + 40; 
-            
-            const isMobile = winW < 600;
+            const header = document.getElementById('game-ui').offsetHeight + 10;
 
-            pieces.forEach(piece => {
-                if(piece.classList.contains('locked')) return;
-                
-                const pW = piece.offsetWidth || 100;
-                const pH = piece.offsetHeight || 100;
-                
-                let minX, maxX, minY, maxY;
+            pieces.forEach((p, i) => {
+                if (piecesData[i].locked) return;
 
-                if (isMobile) {
-                    // SUR MOBILE : On utilise tout l'écran SAUF le titre en haut
-                    minX = 10;
-                    maxX = winW - pW - 10;
-                    minY = headerHeight; // Jamais plus haut que le titre
-                    maxY = winH - pH - 10;
+                const pw = p.offsetWidth, ph = p.offsetHeight;
+                let x, y;
 
-                    // Petite optimisation : essayer de mettre plus de pièces en BAS si possible
-                    if ((winH - containerRect.bottom) > 150) {
-                        // S'il y a de la place en bas, on favorise cette zone (50% de chance)
-                        if (Math.random() > 0.5) {
-                            minY = containerRect.bottom;
-                        }
-                    }
-                } else {
-                    // SUR DESKTOP : Logique classique (gauche/droite/bas)
-                    const side = Math.floor(Math.random() * 3);
-                    if (side === 0) { // Gauche
-                        minX = 10; maxX = containerRect.left - pW - 10;
-                        minY = headerHeight; maxY = winH - pH - 10;
-                    } else if (side === 1) { // Droite
-                        minX = containerRect.right + 10; maxX = winW - pW - 10;
-                        minY = headerHeight; maxY = winH - pH - 10;
-                    } else { // Bas
-                        minX = 10; maxX = winW - pW - 10;
-                        minY = containerRect.bottom + 10; maxY = winH - pH - 10;
-                    }
-                    // Fallback desktop
-                    if (maxX < minX) { minX = 10; maxX = winW - pW - 10; }
+                const zones = [];
+
+                // Bas
+                if (winH - rect.bottom > ph + 30) {
+                    zones.push(() => {
+                        x = 10 + Math.random() * Math.max(0, winW - pw - 20);
+                        y = rect.bottom + 10 + Math.random() * Math.max(0, winH - rect.bottom - ph - 20);
+                    });
                 }
-                
-                // Calcul de position aléatoire
-                const pageX = minX + Math.random() * (maxX - minX);
-                const pageY = minY + Math.random() * (maxY - minY);
 
-                // Conversion importante vers le système de coordonnées du conteneur
-                piece.style.left = `${pageX - containerRect.left}px`;
-                piece.style.top = `${pageY - containerRect.top}px`;
+                // Gauche
+                if (rect.left > pw + 30) {
+                    zones.push(() => {
+                        x = 10 + Math.random() * Math.max(0, rect.left - pw - 20);
+                        y = header + Math.random() * Math.max(0, winH - header - ph - 10);
+                    });
+                }
+
+                // Droite
+                if (winW - rect.right > pw + 30) {
+                    zones.push(() => {
+                        x = rect.right + 10 + Math.random() * Math.max(0, winW - rect.right - pw - 20);
+                        y = header + Math.random() * Math.max(0, winH - header - ph - 10);
+                    });
+                }
+
+                if (zones.length === 0) {
+                    x = 10 + Math.random() * Math.max(0, winW - pw - 20);
+                    y = header + Math.random() * Math.max(0, winH - header - ph - 20);
+                } else {
+                    zones[Math.floor(Math.random() * zones.length)]();
+                }
+
+                const relX = x - rect.left;
+                const relY = y - rect.top;
+
+                p.style.left = relX + 'px';
+                p.style.top = relY + 'px';
+                piecesData[i].x = relX;
+                piecesData[i].y = relY;
             });
         }
 
-        function addDragListeners(el) {
-            let startX = 0, startY = 0, initialLeft = 0, initialTop = 0, isDragging = false;
-            
-            const onStart = (e) => {
-                if (el.classList.contains('locked')) return; 
-                isDragging = true;
+        function addDrag(el, index, pieceW, pieceH, tabSize) {
+            let startX, startY, initLeft, initTop;
+            let dragging = false;
+
+            const start = (e) => {
+                if (piecesData[index].locked) return;
+                e.preventDefault();
+                dragging = true;
                 el.classList.add('dragging');
-                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                startX = clientX; startY = clientY;
-                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
+
+                const touch = e.touches ? e.touches[0] : e;
+                startX = touch.clientX;
+                startY = touch.clientY;
+                initLeft = el.offsetLeft;
+                initTop = el.offsetTop;
             };
-            
-            const onMove = (e) => {
-                if (!isDragging) return;
-                e.preventDefault(); // Empêche le scroll page sur mobile
-                const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-                const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                el.style.left = `${initialLeft + (clientX - startX)}px`;
-                el.style.top = `${initialTop + (clientY - startY)}px`;
+
+            const move = (e) => {
+                if (!dragging) return;
+                e.preventDefault();
+
+                const touch = e.touches ? e.touches[0] : e;
+                el.style.left = (initLeft + touch.clientX - startX) + 'px';
+                el.style.top = (initTop + touch.clientY - startY) + 'px';
             };
-            
-            const onEnd = () => {
-                if (!isDragging) return;
-                isDragging = false;
+
+            const end = () => {
+                if (!dragging) return;
+                dragging = false;
                 el.classList.remove('dragging');
-                checkSnap(el);
+
+                const d = piecesData[index];
+                const targetX = d.col * pieceW - tabSize;
+                const targetY = d.row * pieceH - tabSize;
+                const curX = el.offsetLeft;
+                const curY = el.offsetTop;
+
+                const dist = Math.sqrt((curX-targetX)**2 + (curY-targetY)**2);
+                const threshold = Math.max(25, pieceW * 0.3);
+
+                if (dist < threshold) {
+                    el.style.left = targetX + 'px';
+                    el.style.top = targetY + 'px';
+                    el.classList.add('locked');
+                    d.locked = true;
+                    lockedCount++;
+
+                    if (lockedCount === totalPieces) win();
+                } else {
+                    d.x = el.offsetLeft;
+                    d.y = el.offsetTop;
+                }
             };
 
-            el.addEventListener('mousedown', onStart); el.addEventListener('touchstart', onStart, {passive:false});
-            window.addEventListener('mousemove', onMove); window.addEventListener('touchmove', onMove, {passive:false});
-            window.addEventListener('mouseup', onEnd); window.addEventListener('touchend', onEnd);
+            el.addEventListener('mousedown', start);
+            el.addEventListener('touchstart', start, {passive: false});
+            document.addEventListener('mousemove', move);
+            document.addEventListener('touchmove', move, {passive: false});
+            document.addEventListener('mouseup', end);
+            document.addEventListener('touchend', end);
         }
 
-        function checkSnap(el) {
-            const containerW = container.offsetWidth;
-            const containerH = container.offsetHeight;
-            const currentX = (el.offsetLeft / containerW) * 100;
-            const currentY = (el.offsetTop / containerH) * 100;
-            const targetX = parseFloat(el.dataset.targetX);
-            const targetY = parseFloat(el.dataset.targetY);
-            const dist = Math.sqrt(Math.pow(currentX - targetX, 2) + Math.pow(currentY - targetY, 2));
-            
-            // Seuil augmenté sur mobile (20) pour faciliter le jeu au doigt
-            const isMobile = window.innerWidth < 600;
-            const threshold = isMobile ? 20 : 8;
-
-            if (dist < threshold) {
-                snapPiece(el, targetX, targetY);
-            }
-        }
-
-        function snapPiece(el, x, y) {
-            el.style.left = `${x}%`;
-            el.style.top = `${y}%`;
-            el.classList.add('locked');
-            lockedCount++;
-            if (lockedCount === totalPieces) onWin();
-        }
-
-        function onWin() {
+        function win() {
             container.classList.add('puzzle-complete');
-            instructionText.style.opacity = '0';
+            document.getElementById('game-ui').style.opacity = '0';
+
             setTimeout(() => {
-                instructionText.style.display = 'none';
                 successMsg.classList.add('visible');
-                triggerConfetti();
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.9 },
+                    colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097']
+                });
             }, 500);
         }
 
-        function triggerConfetti() {
-            var count = 200;
-            var defaults = { origin: { y: 1 }, zIndex: 9999 };
-            function fire(ratio, opts) { confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * ratio) })); }
-            fire(0.25, { spread: 26, startVelocity: 55, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.2, { spread: 60, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-            fire(0.1, { spread: 120, startVelocity: 45, colors: ['#ff718d', '#fdb44b', '#29cdff', '#e0c097'] });
-        }
+        // Resize
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                createPieces();
+                scramble();
+            }, 200);
+        });
+
+        // Empêcher zoom iOS
+        document.addEventListener('touchmove', (e) => {
+            if (e.target.closest('#puzzle-container')) e.preventDefault();
+        }, {passive: false});
+
+        let lastTap = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTap < 300) e.preventDefault();
+            lastTap = now;
+        }, {passive: false});
     </script>
 </body>
 </html>
