@@ -16,8 +16,7 @@
         html, body {
             margin: 0;
             padding: 0;
-            height: 100%;
-            overflow: hidden;
+            min-height: 100%;
             background-color: #ffffff;
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
@@ -35,7 +34,7 @@
             bottom: 0;
             left: 0;
             width: 100%;
-            z-index: 0;
+            z-index: -1;
             pointer-events: none;
         }
 
@@ -130,23 +129,24 @@
 
         /* Pièces en DIV avec background-image et clip-path */
         .piece {
-            position: absolute;
             cursor: grab;
-            z-index: 60;
             touch-action: none;
             background-image: url('guide.jpg');
             background-repeat: no-repeat;
-            /* Le clip-path sera défini inline */
+            border-radius: 4px;
+            flex-shrink: 0;
         }
 
         .piece.dragging {
-            z-index: 999;
+            position: fixed;
+            z-index: 9999;
             cursor: grabbing;
             filter: drop-shadow(0 8px 16px rgba(0,0,0,0.35));
         }
 
         .piece.locked {
-            z-index: 100;
+            position: absolute;
+            z-index: 300;
             cursor: default;
             pointer-events: none;
         }
@@ -208,10 +208,24 @@
             transform: translateY(0);
         }
 
+        #pieces-tray {
+            width: 100%;
+            min-height: 150px;
+            padding: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 5px;
+            z-index: 100;
+            margin-top: 15px;
+        }
+
         .puzzle-complete #final-reveal { opacity: 1; }
         .puzzle-complete #puzzle-guide { opacity: 0; }
         .puzzle-complete .piece { opacity: 0; }
         .puzzle-complete { box-shadow: 0 15px 40px rgba(0,0,0,0.2); }
+        .puzzle-complete ~ #pieces-tray { display: none; }
     </style>
 </head>
 <body>
@@ -228,6 +242,8 @@
         <div id="final-reveal"></div>
     </div>
 
+    <div id="pieces-tray"></div>
+
     <div id="success-message">
         <h2>Félicitations !</h2>
         <p>Le mariage aura lieu au Tir au Vol, à Arcachon ⚓️</p>
@@ -242,6 +258,7 @@
         };
 
         const container = document.getElementById('puzzle-container');
+        const piecesTray = document.getElementById('pieces-tray');
         const successMsg = document.getElementById('success-message');
 
         let pieces = [];
@@ -285,7 +302,6 @@
 
         // Créer les pièces
         createPieces();
-        scramble();
 
         function createPieces() {
             pieces.forEach(p => p.remove());
@@ -297,11 +313,17 @@
             const pieceH = ch / CONFIG.rows;
             const tabSize = Math.min(pieceW, pieceH) * CONFIG.tabPercent;
 
-            for (let i = 0; i < piecesData.length; i++) {
+            // Mélanger l'ordre pour l'affichage dans le tray
+            const shuffledIndices = piecesData.map((_, i) => i);
+            for (let i = shuffledIndices.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledIndices[i], shuffledIndices[j]] = [shuffledIndices[j], shuffledIndices[i]];
+            }
+
+            shuffledIndices.forEach(i => {
                 const d = piecesData[i];
                 const piece = document.createElement('div');
                 piece.className = 'piece';
-                if (d.locked) piece.classList.add('locked');
 
                 // Taille de la pièce (avec espace pour les tabs)
                 const totalW = pieceW + tabSize * 2;
@@ -321,20 +343,20 @@
                 piece.style.clipPath = clipPath;
                 piece.style.webkitClipPath = clipPath;
 
-                // Position
-                if (d.locked) {
-                    piece.style.left = (d.col * pieceW - tabSize) + 'px';
-                    piece.style.top = (d.row * pieceH - tabSize) + 'px';
-                } else {
-                    piece.style.left = d.x + 'px';
-                    piece.style.top = d.y + 'px';
-                }
-
                 piece.dataset.index = i;
                 addDrag(piece, i, pieceW, pieceH, tabSize);
-                container.appendChild(piece);
-                pieces.push(piece);
-            }
+
+                // Les pièces lockées vont dans le container, les autres dans le tray
+                if (d.locked) {
+                    piece.classList.add('locked');
+                    piece.style.left = (d.col * pieceW - tabSize) + 'px';
+                    piece.style.top = (d.row * pieceH - tabSize) + 'px';
+                    container.appendChild(piece);
+                } else {
+                    piecesTray.appendChild(piece);
+                }
+                pieces[i] = piece;
+            });
         }
 
         function generateClipPath(shape, pieceW, pieceH, tabSize, totalW, totalH) {
@@ -515,58 +537,31 @@
             return `polygon(${pathPoints.join(', ')})`;
         }
 
-        function scramble() {
-            const rect = container.getBoundingClientRect();
-            const cw = container.offsetWidth;
-            const ch = container.offsetHeight;
-
-            // Mélanger l'ordre des pièces pour le placement
-            const shuffledIndices = pieces.map((_, i) => i).filter(i => !piecesData[i].locked);
-            for (let i = shuffledIndices.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [shuffledIndices[i], shuffledIndices[j]] = [shuffledIndices[j], shuffledIndices[i]];
-            }
-
-            // Placer les pièces en grille sous le puzzle (en coordonnées relatives au container)
-            // On utilise des positions qui débordent en bas du container
-            const cols = 4;
-            const spacing = 5;
-
-            shuffledIndices.forEach((idx, position) => {
-                const p = pieces[idx];
-                const pw = p.offsetWidth;
-                const ph = p.offsetHeight;
-
-                const col = position % cols;
-                const row = Math.floor(position / cols);
-
-                // Position en bas du puzzle, en débordant
-                // relX et relY sont relatifs au coin supérieur gauche du container
-                const relX = col * (pw * 0.6) - pw * 0.3 + spacing * col;
-                const relY = ch + row * (ph * 0.5) + spacing * row + 10;
-
-                p.style.left = relX + 'px';
-                p.style.top = relY + 'px';
-                piecesData[idx].x = relX;
-                piecesData[idx].y = relY;
-            });
-        }
-
         function addDrag(el, index, pieceW, pieceH, tabSize) {
-            let startX, startY, initLeft, initTop;
+            let startX, startY, startLeft, startTop;
             let dragging = false;
 
             const start = (e) => {
                 if (piecesData[index].locked) return;
                 e.preventDefault();
                 dragging = true;
-                el.classList.add('dragging');
 
                 const touch = e.touches ? e.touches[0] : e;
+                const rect = el.getBoundingClientRect();
+
+                // Passer en position fixed pour le drag
+                el.style.position = 'fixed';
+                el.style.left = rect.left + 'px';
+                el.style.top = rect.top + 'px';
+                el.classList.add('dragging');
+
+                // Déplacer dans le body pour éviter les problèmes de z-index
+                document.body.appendChild(el);
+
                 startX = touch.clientX;
                 startY = touch.clientY;
-                initLeft = el.offsetLeft;
-                initTop = el.offsetTop;
+                startLeft = rect.left;
+                startTop = rect.top;
             };
 
             const move = (e) => {
@@ -574,8 +569,8 @@
                 e.preventDefault();
 
                 const touch = e.touches ? e.touches[0] : e;
-                el.style.left = (initLeft + touch.clientX - startX) + 'px';
-                el.style.top = (initTop + touch.clientY - startY) + 'px';
+                el.style.left = (startLeft + touch.clientX - startX) + 'px';
+                el.style.top = (startTop + touch.clientY - startY) + 'px';
             };
 
             const end = () => {
@@ -584,25 +579,37 @@
                 el.classList.remove('dragging');
 
                 const d = piecesData[index];
+                const containerRect = container.getBoundingClientRect();
+                const elRect = el.getBoundingClientRect();
+
+                // Position cible dans le container
                 const targetX = d.col * pieceW - tabSize;
                 const targetY = d.row * pieceH - tabSize;
-                const curX = el.offsetLeft;
-                const curY = el.offsetTop;
 
-                const dist = Math.sqrt((curX-targetX)**2 + (curY-targetY)**2);
+                // Position actuelle relative au container
+                const curX = elRect.left - containerRect.left;
+                const curY = elRect.top - containerRect.top;
+
+                const dist = Math.sqrt((curX - targetX) ** 2 + (curY - targetY) ** 2);
                 const threshold = Math.max(25, pieceW * 0.3);
 
                 if (dist < threshold) {
+                    // Locker la pièce dans le container
+                    el.style.position = 'absolute';
                     el.style.left = targetX + 'px';
                     el.style.top = targetY + 'px';
                     el.classList.add('locked');
+                    container.appendChild(el);
                     d.locked = true;
                     lockedCount++;
 
                     if (lockedCount === totalPieces) win();
                 } else {
-                    d.x = el.offsetLeft;
-                    d.y = el.offsetTop;
+                    // Remettre dans le tray
+                    el.style.position = '';
+                    el.style.left = '';
+                    el.style.top = '';
+                    piecesTray.appendChild(el);
                 }
             };
 
@@ -634,8 +641,11 @@
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(() => {
+                // Reset et recréer les pièces
+                piecesData.forEach(d => d.locked = false);
+                lockedCount = 0;
+                container.classList.remove('puzzle-complete');
                 createPieces();
-                scramble();
             }, 200);
         });
 
