@@ -73,6 +73,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             width: 240px;
             height: 180px;
+            overflow: visible;
         }
 
         @media (min-width: 360px) {
@@ -516,61 +517,38 @@
 
         function scramble() {
             const rect = container.getBoundingClientRect();
-            const winW = window.innerWidth;
-            const winH = window.innerHeight;
-            const header = document.getElementById('game-ui').offsetHeight + 10;
+            const cw = container.offsetWidth;
+            const ch = container.offsetHeight;
 
-            pieces.forEach((p, i) => {
-                if (piecesData[i].locked) return;
+            // Mélanger l'ordre des pièces pour le placement
+            const shuffledIndices = pieces.map((_, i) => i).filter(i => !piecesData[i].locked);
+            for (let i = shuffledIndices.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledIndices[i], shuffledIndices[j]] = [shuffledIndices[j], shuffledIndices[i]];
+            }
 
-                const pw = p.offsetWidth, ph = p.offsetHeight;
-                let x, y;
+            // Placer les pièces en grille sous le puzzle (en coordonnées relatives au container)
+            // On utilise des positions qui débordent en bas du container
+            const cols = 4;
+            const spacing = 5;
 
-                const zones = [];
+            shuffledIndices.forEach((idx, position) => {
+                const p = pieces[idx];
+                const pw = p.offsetWidth;
+                const ph = p.offsetHeight;
 
-                // Bas
-                if (winH - rect.bottom > ph + 30) {
-                    zones.push(() => {
-                        x = 10 + Math.random() * Math.max(0, winW - pw - 20);
-                        y = rect.bottom + 10 + Math.random() * Math.max(0, winH - rect.bottom - ph - 20);
-                    });
-                }
+                const col = position % cols;
+                const row = Math.floor(position / cols);
 
-                // Gauche
-                if (rect.left > pw + 30) {
-                    zones.push(() => {
-                        x = 10 + Math.random() * Math.max(0, rect.left - pw - 20);
-                        y = header + Math.random() * Math.max(0, winH - header - ph - 10);
-                    });
-                }
-
-                // Droite
-                if (winW - rect.right > pw + 30) {
-                    zones.push(() => {
-                        x = rect.right + 10 + Math.random() * Math.max(0, winW - rect.right - pw - 20);
-                        y = header + Math.random() * Math.max(0, winH - header - ph - 10);
-                    });
-                }
-
-                let relX, relY;
-
-                if (zones.length === 0) {
-                    // Pas d'espace autour du puzzle - placer les pièces SUR le puzzle
-                    // en position empilée dans le coin inférieur droit
-                    const stackOffsetX = (i % 4) * 15;
-                    const stackOffsetY = Math.floor(i / 4) * 15;
-                    relX = rect.width - pw + stackOffsetX;
-                    relY = rect.height - ph + stackOffsetY;
-                } else {
-                    zones[Math.floor(Math.random() * zones.length)]();
-                    relX = x - rect.left;
-                    relY = y - rect.top;
-                }
+                // Position en bas du puzzle, en débordant
+                // relX et relY sont relatifs au coin supérieur gauche du container
+                const relX = col * (pw * 0.6) - pw * 0.3 + spacing * col;
+                const relY = ch + row * (ph * 0.5) + spacing * row + 10;
 
                 p.style.left = relX + 'px';
                 p.style.top = relY + 'px';
-                piecesData[i].x = relX;
-                piecesData[i].y = relY;
+                piecesData[idx].x = relX;
+                piecesData[idx].y = relY;
             });
         }
 
